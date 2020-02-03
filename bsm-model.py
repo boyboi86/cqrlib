@@ -3,12 +3,16 @@ import scipy.stats as si
 
     #S: spot price
     #K: strike price
-    #T: time to maturity
+    #T: time to maturity % year; choose 252 trading days or 365 calendar days i.e 30/252 or 30/365, it should be how much time left not total option duration
     #r: interest rate
     #sigma: volatility of underlying asset
     #q: continuous dividend rate
 
 p = print
+    # annual dividend yield; use this only if you are unsure
+def div_yield(freq, S, div):
+    div_yield = np.log((div * freq)/S)
+    return div_yield
 
 def err_msg(option_type):
     p('{0} is not valid option type\nchoose c for call and p for put').format(option_type)
@@ -31,7 +35,7 @@ def d2(sigma, S, K, r, T, q):
     d2 = d1(sigma, S, K, r, T, q) - sigma * np.sqrt(T)
     return d2
 
-# div paying asset using BSM
+    #div paying asset using BSM
 def bsm_price(option_type, sigma, S, K, r, T, q):
 
     option_type = option_type.lower()  
@@ -50,11 +54,7 @@ def bsm_price(option_type, sigma, S, K, r, T, q):
     else:
         err_msg(option_type)
 
-#ATM price
-print(bsm_price('c', 0.3, 3, 3, 0.032, 30/365, 0.01))
-print(bsm_price('p', 0.3, 3, 3, 0.032, 30/365, 0.01))
-
-#bsm formula for delta
+    #bsm formula for delta
 def delta(option_type, sigma, S, K, r, T, q):
     option_type = option_type.lower()  
     sigma = float(sigma)
@@ -69,3 +69,24 @@ def delta(option_type, sigma, S, K, r, T, q):
         return delta
     else:
         err_msg(option_type)
+
+    #bsm formula for gamma
+def gamma(sigma, S, K, r, T, q):
+    sigma = float(sigma)
+    
+    _d1 = d1(sigma, S, K, r, T, q)
+
+    gamma = np.exp(-q * T - 0.5 * _d1 ** 2)/ (S * sigma * np.sqrt(2 * np.pi * T))
+    return gamma
+
+    #bsm formula for vega
+def vega(sigma, S, K, r, T, q):
+    sigma = float(sigma)
+    
+    _d1 = d1(sigma, S, K, r, T, q)
+
+    vega = 0.01 * S * np.exp(-q * T) * np.sqrt(T) * np.exp(- 0.5 * _d1 ** 2)/ np.sqrt(2 * np.pi)
+    return vega
+
+#def IV(option_type, sigma, S, K, r, T, q):
+    
