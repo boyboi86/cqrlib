@@ -12,5 +12,4 @@
   <li>delta</li>
   <li>gamma</li>
   <li>vega</li>
-  <li>IV</li>
 </ul>
