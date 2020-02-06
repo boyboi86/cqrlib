@@ -12,25 +12,6 @@ from arch.unitroot import ADF, KPSS
 
 p = print
 
-#IV(option_type, sigma, S, K, r, T, q)
-#p(IV('c', 0.3, 3, 3, 6, 30/365, 0.6))
-
-# CBOE benchmark
-
-vix = pd.read_csv("^VIX.csv")
-vix.rename(columns={'Adj Close':'CBOE'}, inplace=True)
-vix['CBOE'] = vix['CBOE'] * 0.01
-pd.to_datetime(vix['Date'])
-vix.index = vix['Date']
-vix.drop(labels=['Date','Open','Close','High','Low','Volume'], axis=1, inplace=True)
-
-# Conversion of data with index to time using to_datetime()
-df = pd.read_csv("SPY.csv")
-pd.to_datetime(df['Date'])
-df.index = df['Date']
-df.drop(labels=['Date','Open','Close','High','Low','Volume'], axis=1, inplace=True)
-
-
 def unit_test(inputdata):
     adf = ADF(inputdata)
     kpss = KPSS(inputdata)
@@ -114,7 +95,6 @@ def count_std(returns, period = 1 , period_type = 'T', summary = False):
     df['iv'] = IV('c', df['annual_vol'], returns, returns, 0.03, period / period_day, 0.0175)
     df.dropna(inplace=True)
     
-    
     if summary == True:
         p("\n************************************************************")
         p("Period used: {0}           Period length:{1}".format(period, period_day))
@@ -123,7 +103,7 @@ def count_std(returns, period = 1 , period_type = 'T', summary = False):
         
 
 
-
+#------ plotting graphs for research archive ----------------
 def plotgraph():
     plt.figure(figsize=(18,8))
     line1, = plt.plot((df['iv']), color = 'orange') #IV BSM
@@ -132,14 +112,5 @@ def plotgraph():
     plt.legend([ line1, line2, line3],['BSM IV', 'GARCH Estimated Volatility', 'CBOE VIX Benchmark'])
     plt.show()
 
-
-ac = df['Adj Close']
-
-return_type(ac, ln_return = False, summary = True)
-count_std(ac, period = 21, period_type = 'T', summary = True)
-
-pc = df['returns']
-unit_test(pc)
-plotgraph()
 
 
