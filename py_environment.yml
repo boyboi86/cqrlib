@@ -1,0 +1,46 @@
+name: pyenv
+channels:
+- defaults
+dependencies:
+- cycler
+- icu
+- jpeg
+- libpng
+- matplotlib
+- mkl
+- numpy
+- nltk
+- openssl
+- pandas
+- patsy
+- pip
+- pyparsing
+- pyqt
+- python
+- python-dateutil
+- pytz
+- qt
+- requests-file
+- requests-ftp
+- scikit-learn
+- scipy=0.19.1
+- setuptools
+- sip
+- six
+- statsmodels
+- tk
+- vs2015_runtime
+- wheel
+- zlib
+- pip:
+  - certifi
+  - chardet
+  - idna
+  - inflection
+  - more-itertools
+  - quandl
+  - urllib3
+  - alpha_vantage
+  - QuantLib-Python
+prefix: \\Anaconda3\envs\pyenv
+
