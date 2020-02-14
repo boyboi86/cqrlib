@@ -85,3 +85,12 @@ def vega(sigma, S, K, r, T, q):
     return vega
 
 # Enhanced IV based on research BS estimator; P and C should have the same unless arbitrage
+def IV(option_type, sigma, S, K, r, T, q):
+    option_type = option_type.lower() 
+    option = bsm_price(option_type, sigma, S, K, r, T, q)
+    cm1 = np.sqrt( 2 * np.pi )/ ( 2 * ( S + K ))
+    br1 = ( 2 * option ) + K - S
+    br2 = ( 1.85 * (S + K) * (K - S) ** 2) / ( np.pi * np.sqrt( S * K ))
+    IV = cm1 * ( br1 + np.sqrt( br1 ** 2 - br2 ))
+    return IV
+
