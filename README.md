@@ -5,7 +5,7 @@
 
 <p>Please make sure you go through the algorithm before using it.</p>
 <p>let me know if you found error anywhere.</p>
-
+<p>There are some matplotlib images and transaction records, kindly ignore those.</p>
 <p>Might require some parameter fitting into your own trading models.</p>
 
 <p><u>whats included?</u></p>
