@@ -18,49 +18,7 @@ import pandas_datareader.data as pdr
 import datetime as dt
 from calldata import sampledata
 
-p = print
-tickers = ["ES=F"]
-period = 3
 
-df = sampledata(period, tickers)
-
-def datacalling(period, ticker):
-    df = pd.DataFrame()
-    sampleperiod = 365 * period
-    startdate = dt.date.today() - dt.timedelta(days = sampleperiod)
-    try:
-        temp = pdr.get_data_yahoo(ticker, startdate, dt.date.today())
-        temp.dropna(inplace = True)
-        df[ticker] = temp["Adj Close"]
-        df["vol"] = temp["Volume"]
-        print("Data retrieved..")
-        return temp, df
-    except:
-        print("Data cannot be retrieved..")
-    
-
-df = sampledata(period, tickers)
-#==============================================================================
-# calculate log returns for dataframe
-# can choose to return pd.series instead
-# Can play ard without log return use pct_chg()
-#==============================================================================
-
-def returns(data):
-    df["returns"] = df["ES=F"].pct_change() * np.sqrt(365)
-    df["net_rtn"] = df["returns"].cumsum()
-    df["log_ret"] = (np.log(df["ES=F"]) - np.log(df["ES=F"].shift(1))) * np.sqrt(365)
-    df["net_lgrtn"] = df["log_ret"].cumsum()
-    df.dropna(inplace=True)
-    return df
-
-#==============================================================================
-# Try out basic Tick imbalance without Vol
-# E0 [θT ] =E0 [T](P[bt = 1] − P[bt = −1])
-# Where practice E0 [T] = ewma of T
-# where in practice (P[bt = 1] − P[bt = −1]) = ewma cumsum signal
-# Testout Lambda for ewma to fit S&P futures
-#==============================================================================
 def ema_tick(imbalance, weighted_count, weighted_sum, weighted_sum_T, limit, alpha, T_count):
     weighted_sum_T = limit + (1 - alpha) * weighted_sum_T
     weighted_sum = limit / (1.0 * T_count) + (1 - alpha) * weighted_sum
@@ -99,17 +57,11 @@ def tick_bar(data, set_limit, alpha):
             T_dn -= 1
             df["net_signal"][i] = T_imb_sum
         upper_limit = max(T_imb_sum, T_up)
-        #lower_limit = min(T_imb_sum, T_dn)
         if upper_limit >= set_limit:
             imbalance, weighted_count, weighted_sum, weighted_sum_T = ema_tick(imbalance, weighted_count, weighted_sum, weighted_sum_T, upper_limit, alpha, T_count)
             imb_arr.append(imbalance) # exclude ewma without hitting threshold
             rtn.append(df["net_lgrtn"][i])
             T_up = 0
-       # elif lower_limit <= -1 * set_limit:
-       #     imbalance, weighted_count, weighted_sum, weighted_sum_T = ema_tick(imbalance, weighted_count, weighted_sum, weighted_sum_T, lower_limit, alpha, T_count)
-       #     imb_arr.append(imbalance) # exclude ewma without hitting threshold
-       #     rtn.append(df["net_lgrtn"][i])
-       #     T_dn = 0
         else:
             imb_arr.append(imbalance) # exclude ewma without hitting threshold
             rtn.append(df["net_lgrtn"][i])
@@ -118,43 +70,3 @@ def tick_bar(data, set_limit, alpha):
     return df, imb_arr, rtn, bt_arr
 
 df, imb_arr, rtn, bt_arr = tick_bar(df, 3, 0.7)
-
-#==============================================================================
-# Try out basic Tick imbalance without Vol
-# T index threshold set 2
-# Where practice E0 [T] = ewma of T
-# where in practice (P[bt = 1] − P[bt = −1]) = ewma cumsum signal
-# Testout Lambda for ewma to fit S&P futures
-# Checking correlation, signal generation is somewhat reliable sell/buy
-#==============================================================================
-def corr(imb_arr, rtn):
-    imb = pd.Series(imb_arr)
-    rt = pd.Series(rtn)
-    corr = rt.rolling(7).corr(imb)
-    return corr
-
-corr = corr(imb_arr, rtn)
-
-def graphplot():
-    plt.figure(figsize=(15,8))
-    plt.plot(rtn) #reduce plot days 90
-    plt.plot(imb_arr)
-        
-    # Plot formatting
-    plt.legend(["Accumulative return", "Imbalance Bars", "Directional change signal"])
-    plt.title("Tick Imbalance Bar Vs Annualized Return (S&P 500 E-mini)")
-    plt.xlabel("time days")
-    plt.ylabel("log returns")
-    plt.show()
-
-graphplot()
-
-def corplot():
-    plt.figure(figsize=(15,8))
-    plt.plot(corr)
-        
-    # Plot formatting
-    plt.title("Tick Imbalance Bar Vs Annualized Return (S&P 500 E-mini)")
-    plt.show()
-
-corplot()
