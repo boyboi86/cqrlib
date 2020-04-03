@@ -69,4 +69,68 @@ def tick_bar(data, set_limit, alpha):
             
     return df, imb_arr, rtn, bt_arr
 
-df, imb_arr, rtn, bt_arr = tick_bar(df, 3, 0.7)
+#==============================================================================
+# Try out basic Tick imbalance without Vol
+# E0 [θT ] =E0 [T](P[bt = 1] − P[bt = −1])
+# Where practice E0 [T] = ewma of T
+# where in practice (P[bt = 1] − P[bt = −1]) = ewma cumsum signal
+# Testout Lambda for ewma to fit S&P futures
+# To be run seperately from above
+#==============================================================================
+
+def returns(data, tickers):
+    b_t = []
+    v_t = []
+    _ = df[tickers].pct_change() * np.sqrt(365)
+    _.dropna(inplace=True)
+    for i, value in enumerate(_):
+        b_t.append(value)
+        v_t.append(df["vol"][i])
+    return b_t, v_t
+
+b_t, v_t = returns(df, tickers)
+
+def ema_tick(imbalance, weighted_count, weighted_sum, weighted_sum_T, limit, alpha, T_count):
+    weighted_sum_T = limit + (1 - alpha) * weighted_sum_T
+    weighted_sum = limit / (1.0 * T_count) + (1 - alpha) * weighted_sum
+    weighted_count = 1 + (1 - alpha) * weighted_count
+    imbalance = weighted_sum_T * weighted_sum/ weighted_count ** 2
+    return imbalance, weighted_count, weighted_sum, weighted_sum_T
+
+
+def vol_bar(data, tickers, set_limit, alpha):
+    b_t, v_t = returns(data, tickers)
+    vt_arr = []
+    bt_arr = []
+    imb_arr = []
+    weighted_sum_T = 0
+    weighted_sum = 0
+    weighted_count = 0
+    vt_count = 0
+    vt_up = 0
+    vt_dn = 0
+    v_imb_sum = 0
+    imbalance = 0
+    for i, value in enumerate(b_t):
+        vt_count += v_t[i]
+        if value > 0:
+            bt_arr.append(1)
+            vt_arr.append(v_t[i])
+            v_imb_sum += v_t[i]
+            vt_up += v_t[i]
+            
+        else:
+            bt_arr.append(-1)
+            vt_arr.append(-1 * v_t[i])
+            v_imb_sum -= v_t[i]
+            vt_dn -= v_t[i]
+            
+        upper_limit = max(v_imb_sum, vt_up)
+        if upper_limit >= set_limit:
+            imbalance, weighted_count, weighted_sum, weighted_sum_T = ema_tick(imbalance, weighted_count, weighted_sum, weighted_sum_T, upper_limit, alpha, vt_count)
+            imb_arr.append(imbalance) # exclude ewma without hitting threshold
+            vt_up = 0
+        else:
+            imb_arr.append(imbalance)    
+    return vt_arr, bt_arr, imb_arr, v_t, b_t
+
