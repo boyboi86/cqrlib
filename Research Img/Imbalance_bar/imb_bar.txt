@@ -7,7 +7,7 @@ Std 0.654 times per week
 Autocorr: 0.10386748271954381 (N = 1)
 Autocorr: 0.015826848718866946 (N = 2)
 Jarque-Bera Test: 1027.636 (Lowest)
-Shapiro-Wilk Test: [0.4878009557723999, 1.5024879565844785e-22] (Highest)
+Shapiro-Wilk Test: [0.4878009557723999, 1.5024879565844785e-22] (Highest/ Reject Hypothesis/ Non-Guass)
 ==================================================
 ==================================================
 Statistic for Volume Imbalance
@@ -18,7 +18,7 @@ Std 0.394 times per week
 Autocorr: -0.034511797798169874 (N = 1)
 Autocorr: -0.034713548220515755 (N = 2)
 Jarque-Bera Test: 1762.2862
-Shapiro-Wilk Test: [0.39875757694244385, 3.8628487211842004e-24]
+Shapiro-Wilk Test: [0.39875757694244385, 3.8628487211842004e-24] (Reject Hypothesis/ Non-Guass)
 ==================================================
 ==================================================
 Statistic for Dollar Imbalance
@@ -29,12 +29,16 @@ Std 0.482 times per week
 Autocorr: -0.04603374538283397 (N = 1)
 Autocorr: -0.04630586616156536 (N = 2)
 Jarque-Bera Test: 1593.5469
-Shapiro-Wilk Test: [0.3863952159881592, 2.4037246536635563e-24]
+Shapiro-Wilk Test: [0.3863952159881592, 2.4037246536635563e-24] (Reject Hypothesis/ Non-Guass)
 ==================================================
 
 Note: 
 
-Tick imbalance bar display inertia against down price movement making it better choice as compared to Dollar/ Volume Imbalance
+Tick imbalance bar display inertia against down price movement making it better choice as compared to Dollar/ Volume Imbalance.
+
+Dollar Imbalance has lowest Serial Correlation, which makes it perpect to pair with MA trends. Dollar Bar thens to have high AR.
+
+Due to the lack of sample size, JB & SW test might not be fully reliable. However comparison between different imbalance bars can still be made for further research.
 
 Research findings:
 
@@ -49,4 +53,4 @@ During this period, Tick Imbalance experience a high lag (no signal) and pushing
 
 Experimental results seems to be in line with other quantitative practitioners with Tick Imbalance as a better choice.
 Both graphically as well as statistic test scores. 
-However, others practitioners were using much shorter sample time bars (up to 50,000) with period between 2015 - 2018.
+However, others practitioners were using much shorter sample time bars/ bar size (up to 50,000) with period between 2015 - 2018.
