@@ -1,0 +1,52 @@
+==================================================
+Statistic for Tick Imbalance
+Signal generated 33, 18.436% of sample period
+Ave signal 1.269 times per week
+Median signal 1.0 times per week
+Std 0.654 times per week
+Autocorr: 0.10386748271954381 (N = 1)
+Autocorr: 0.015826848718866946 (N = 2)
+Jarque-Bera Test: 1027.636 (Lowest)
+Shapiro-Wilk Test: [0.4878009557723999, 1.5024879565844785e-22] (Highest)
+==================================================
+==================================================
+Statistic for Volume Imbalance
+Signal generated 21, 11.732% of sample period
+Ave signal 0.808 times per week
+Median signal 1.0 times per week
+Std 0.394 times per week
+Autocorr: -0.034511797798169874 (N = 1)
+Autocorr: -0.034713548220515755 (N = 2)
+Jarque-Bera Test: 1762.2862
+Shapiro-Wilk Test: [0.39875757694244385, 3.8628487211842004e-24]
+==================================================
+==================================================
+Statistic for Dollar Imbalance
+Signal generated 21, 11.732% of sample period
+Ave signal 0.808 times per week
+Median signal 1.0 times per week
+Std 0.482 times per week
+Autocorr: -0.04603374538283397 (N = 1)
+Autocorr: -0.04630586616156536 (N = 2)
+Jarque-Bera Test: 1593.5469
+Shapiro-Wilk Test: [0.3863952159881592, 2.4037246536635563e-24]
+==================================================
+
+Note: 
+
+Tick imbalance bar display inertia against down price movement making it better choice as compared to Dollar/ Volume Imbalance
+
+Research findings:
+
+Based on standard sample period over 180 days (2020): Tick Imbalance Runs demostrated a unstable signal effect.
+This is due to the recent change in price change. 
+In terms of stability count both Dollar & Volume bars would be a better choice (Regardless of price movement/ Contain strong evidence to reject).
+However in various test performed including JB & SW, Tick Imbalance would have better score.
+
+Graphically, there is a consistant "Buy" signal for all 3 types. 
+Until overall downward price movement, as a result significant reduction in signal generated noted for Tick Imbalance.
+During this period, Tick Imbalance experience a high lag (no signal) and pushing the overall standard deviation.
+
+Experimental results seems to be in line with other quantitative practitioners with Tick Imbalance as a better choice.
+Both graphically as well as statistic test scores. 
+However, others practitioners were using much shorter sample time bars (up to 50,000) with period between 2015 - 2018.
