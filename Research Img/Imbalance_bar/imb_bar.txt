@@ -54,3 +54,15 @@ During this period, Tick Imbalance experience a high lag (no signal) and pushing
 Experimental results seems to be in line with other quantitative practitioners with Tick Imbalance as a better choice.
 Both graphically as well as statistic test scores. 
 However, others practitioners were using much shorter sample time bars/ bar size (up to 50,000) with period between 2015 - 2018.
+
+======================================================
+
+Implementing 3 barriers Method
+
+Based on further research into execution for strategy implementation, high frequency data (Intra-day) is required to provide reliable signal generation. EOD data provides loss opportunities and the overall volume amplifies such erroreous signal.
+
+However, based on GARCH (1,1) research: 
+
+Most trading activities occurs within the first & last 1 hour which will increase abnormal market value change (Dollar Value Bars).
+
+While other research reports entails 30 - 40 mins can provide less noise (heteroscedastic), making it more stable. However, this may or may not increase autocorr which will be a concern since dollar bars are well-suited for mean-reversion strategy.
