@@ -14,42 +14,14 @@ import pandas as pd
 import scipy.stats as si
 import pandas_datareader.data as pdr
 import datetime as dt
+from numba import jit
 
-p = print
-tickers = "ES=F"
-period = 0.6
-
-#==============================================================================
-# calculate log returns for dataframe
-# if we use pct change in vol it's more of liquidity check/ market sentiment
-# instead we will use overall volume for that day as signal magnitude for imbalance
-# while tick signal will still be based on price change
-# Tick bar is bias upwards hence it will generate more signal during up tick
-# but there will be a drop in signal when overall price trend is downwards
-#==============================================================================
-def datacalling(period, ticker):
-    df = pd.DataFrame()
-    sampleperiod = 365 * period
-    startdate = dt.date.today() - dt.timedelta(days = sampleperiod)
-    try:
-        temp = pdr.get_data_yahoo(ticker, startdate, dt.date.today())
-        temp.dropna(inplace = True)
-        df[ticker] = temp["Adj Close"]
-        df["V"] = temp["Volume"]
-        df["DV"] = temp["Adj Close"] * temp["Volume"]
-        print("Data retrieved..")
-        return df
-    except:
-        print("Data cannot be retrieved..")
-    
-
-df = datacalling(period, tickers)
 #==============================================================================
 # calculate log returns for dataframe
 # can choose to return pd.series instead
 # Can play ard without log return use pct_chg()
 #==============================================================================
-
+@jit(nopython=True, parallel=True)
 def returns(data, tickers):
     b_t = []
     _ = df[tickers].pct_change()
@@ -65,6 +37,7 @@ def returns(data, tickers):
 # where in practice (P[bt = 1] − P[bt = −1]) = ewma cumsum signal
 # Testout Lambda for ewma to fit S&P futures
 #==============================================================================
+@jit(nopython=True, parallel=True)
 def ema_tick(imbalance, weighted_count, weighted_sum, weighted_sum_T, limit, alpha, T_count):
     weighted_sum_T = limit + (1 - alpha) * weighted_sum_T
     weighted_sum = limit / (1.0 * T_count) + (1 - alpha) * weighted_sum
@@ -72,6 +45,7 @@ def ema_tick(imbalance, weighted_count, weighted_sum, weighted_sum_T, limit, alp
     imbalance = weighted_sum_T * weighted_sum/ weighted_count ** 2
     return imbalance, weighted_count, weighted_sum, weighted_sum_T
 
+@jit(nopython=True, parallel=True)
 def imbalance_bar(data, tickers, set_limit, alpha):
     b_t = returns(data, tickers)
     bt_arr = []
@@ -121,6 +95,7 @@ dt_arr, d_imb_arr, d_t = imbalance_bar(df, "DV", 4, 0.9)
 # Checking correlation, signal generation is somewhat reliable sell/buy
 #==============================================================================
 
+@jit(nopython=True, parallel=True)
 def sig(imb_type, imb_arr, bt_arr):
     total = 0
     total_sum = len(bt_arr)
@@ -153,67 +128,3 @@ def imb_bar_check(imb_type, imb_type_arr, bt_arr):
         imb_bars_count.append(imb_total)
         imb_week_count.append(imb_week_count)
     return imb_bars_arr, imb_bars_count, imb_week_count
-
-imb_type = ["Tick Imbalance", "Volume Imbalance", "Dollar Imbalance"]
-imb_type_arr = [b_imb_arr, v_imb_arr, d_imb_arr]
-imb_bars_arr, imb_bars_count, imb_week_count = imb_bar_check(imb_type, imb_type_arr, bt_arr)
-
-b_imb = pd.Series(imb_bars_arr[0])
-v_imb = pd.Series(imb_bars_arr[1])
-d_imb = pd.Series(imb_bars_arr[2])
-
-def autocorr_check(pd_series):
-    print(pd_series.autocorr())
-    print(pd_series.autocorr(2))
-
-def jb(x,test=True): 
-    np.random.seed(12345678)
-    if test: print(si.jarque_bera(x)[0])
-    print(si.jarque_bera(x)[1])
-
-def shapiro(x,test=True): 
-    np.random.seed(12345678)
-    if test: print(si.shapiro(x)[0])
-    print(si.shapiro(x)[1])
-
-
-def graphplot():
-    plt.figure(figsize=(15,8))
-    plt.plot(bt_arr)
-    plt.scatter(b_imb.index[b_imb != 0], b_imb[b_imb != 0], color = "red", marker = "x")
-    plt.scatter(v_imb.index[v_imb != 0], v_imb[v_imb != 0], color = "green", marker = "x")
-    plt.scatter(d_imb.index[d_imb != 0], d_imb[d_imb != 0], color = "black", marker = "x")
-    # Plot formatting
-    plt.legend(["Price change", "Tick Imbalance Bars", "Vol Imbalance Bars", "Dollar Imbalance Bars"])
-    plt.title("Imbalance Bar Buy Signal Vs Price Change (S&P 500 E-mini)")
-    plt.xlabel("Time (Days)")
-    plt.ylabel("Percentage change")
-    plt.show()
-
-#==============================================================================
-# Future spread rollovers (multiple futures Natural Gas/ Cotton etc)
-# assume a basket of asset similar to ETFs
-# not all tradable but those that are tradable at t have to be include
-# asset_arr = every of all tradable assets weightage within basket of futures
-# weightage/ allocation based on number of contract held
-# FX USD/ ???
-# open_arr = opening price for next series t - 1 .. t+1 for all tradable asset that was weighted
-# close_arr = close price for current series t - 1 .. t for all tradable asset that was weighted
-#==============================================================================
-'''
-def weight_adj(open_arr, asset_arr, exchange_rate):
-    total_alloc = np.cumsum(abs(asset_arr))
-    weight_arr = []
-    for i, value in enumerate(asset_arr):
-        adj_weight = value/total_alloc * exchange_rate * open_arr[i][2]
-        weight_arr.append(adj_weight)
-    return weight_arr
-
-def price_chng(open_arr, close_arr):
-    for i in range(len(close_arr)):
-        if i < 1:
-            close_arr[i] - open_arr[i]
-
-def future_spread_adj(open_arr, close_arr, asset_arr, exchange_rate):
-    weight_arr = weight_adj(open_arr, asset_arr, exchange_rate)
-'''
