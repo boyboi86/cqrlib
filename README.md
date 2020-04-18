@@ -8,6 +8,9 @@
 <p>There are some matplotlib images and transaction records, kindly ignore those.</p>
 <p>Might require some parameter fitting into your own trading models. Kindly include your own numba/jit for speed & performance optimisation</p>
 <p>Not everything here is for option, some were meant for futures related i.e. Index (E-mini S&P500), cypto, commodities (LNG, Crude) etc.</p>
+<p>Most of the codes for futures are not HFT but rather code to fit Yahoo finance daily data, since HF data is too ex</p>
+<p>General concept still revolves around market micro-structure, mean-reversion etc</p>
+<p>You may wish to go to other repo for HFT related codes if you are in a hurry</p>
 <p><u>whats included?</u></p>
 <p><u>Option Related?</u></p>
 <ul>
@@ -22,6 +25,7 @@
 </ul>
 <p><u>Data Structure/ Machine-learning related</u></p>
 <ul>
+  <li>Standard Data Bars</li>
   <li>Imbalance Bars</li>
   <li>Principle Component Analysis (PCA)</li>
   <li>Support Vectors Machine (SVM)</li>
