@@ -27,7 +27,7 @@ def volume_bar(df: pd.DataFrame, m: int):
     v_t = dd_bars(df, column, m)
     return v_t
 
-def tick_bar(df0: pd.DataFrame, m: int):
+def tick_bar(df: pd.DataFrame, m: int):
     if 'Close' in df.columns:
         column = df['Close']
     t_b = dd_bars(df, column, m)
