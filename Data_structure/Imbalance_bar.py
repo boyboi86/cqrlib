@@ -1,30 +1,27 @@
-# -*- coding: utf-8 -*-
 """
-Created on Sat Mar 28 11:30:43 2020
+This has to be used with order book to track orders flow abnormalities
 
-@author: Wei_Xiang
+possible idea for liquidity check VWAP strategy or bid-ask spread PCA
 
-When tested against XSP future. Super reliable Signal. Require further testing.
+The logic is as per below, but due to high serial correlation (weak statistical property)
+
+Mean-reversion strategies are better off with just standard bars
+
+You may look at the below logic, since it's not easy to implement
 
 """
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import scipy.stats as si
-import pandas_datareader.data as pdr
-import datetime as dt
-from numba import jit
 
 #==============================================================================
 # calculate log returns for dataframe
 # can choose to return pd.series instead
 # Can play ard without log return use pct_chg()
 #==============================================================================
-@jit(nopython=True, parallel=True)
 def returns(data, tickers):
     b_t = []
-    _ = df[tickers].pct_change()
+    _ = data[tickers].pct_change()
     _.dropna(inplace=True)
     for i, value in enumerate(_):
         b_t.append(value)
@@ -37,7 +34,7 @@ def returns(data, tickers):
 # where in practice (P[bt = 1] − P[bt = −1]) = ewma cumsum signal
 # Testout Lambda for ewma to fit S&P futures
 #==============================================================================
-@jit(nopython=True, parallel=True)
+
 def ema_tick(imbalance, weighted_count, weighted_sum, weighted_sum_T, limit, alpha, T_count):
     weighted_sum_T = limit + (1 - alpha) * weighted_sum_T
     weighted_sum = limit / (1.0 * T_count) + (1 - alpha) * weighted_sum
@@ -45,7 +42,6 @@ def ema_tick(imbalance, weighted_count, weighted_sum, weighted_sum_T, limit, alp
     imbalance = weighted_sum_T * weighted_sum/ weighted_count ** 2
     return imbalance, weighted_count, weighted_sum, weighted_sum_T
 
-@jit(nopython=True, parallel=True)
 def imbalance_bar(data, tickers, set_limit, alpha):
     b_t = returns(data, tickers)
     bt_arr = []
@@ -72,7 +68,13 @@ def imbalance_bar(data, tickers, set_limit, alpha):
             
         upper_limit = max(b_imb_sum, bt_up)
         if upper_limit >= set_limit:
-            imbalance, weighted_count, weighted_sum, weighted_sum_T = ema_tick(imbalance, weighted_count, weighted_sum, weighted_sum_T, upper_limit, alpha, bt_count)
+            imbalance, weighted_count, weighted_sum, weighted_sum_T = ema_tick(imbalance, 
+                                                                               weighted_count,
+                                                                               weighted_sum,
+                                                                               weighted_sum_T,
+                                                                               upper_limit,
+                                                                               alpha,
+                                                                               bt_count)
             imb_arr.append(imbalance) # exclude ewma without hitting threshold
             if upper_limit == bt_up:
                 bt_up = 0
@@ -82,20 +84,6 @@ def imbalance_bar(data, tickers, set_limit, alpha):
             imb_arr.append(0.0)    
     return bt_arr, imb_arr, b_t
 
-bt_arr, b_imb_arr, b_t = imbalance_bar(df, tickers, 4, 0.9)
-vt_arr, v_imb_arr, v_t = imbalance_bar(df, "V", 4, 0.9)
-dt_arr, d_imb_arr, d_t = imbalance_bar(df, "DV", 4, 0.9)
-
-#==============================================================================
-# Try out basic Tick imbalance without Vol
-# T index threshold set 2
-# Where practice E0 [T] = ewma of T
-# where in practice (P[bt = 1] − P[bt = −1]) = ewma cumsum signal
-# Testout Lambda for ewma to fit S&P futures
-# Checking correlation, signal generation is somewhat reliable sell/buy
-#==============================================================================
-
-@jit(nopython=True, parallel=True)
 def sig(imb_type, imb_arr, bt_arr):
     total = 0
     total_sum = len(bt_arr)
