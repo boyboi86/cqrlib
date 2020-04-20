@@ -1,12 +1,17 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Apr 19 16:27:10 2020
-
-@author: Wei_X
-"""
-
 import pandas as pd
 import numpy as np
+
+def daily_vol(close: pd.Series, span0: int = 100):
+    '''
+    This may not work in daily data but might work in HFT
+    Code snippet from AFML
+    '''
+    df0 = close.index.searchsorted(close.index - pd.Timedelta(days = 1))
+    df0 = df0[df0 > 0]
+    df0 = pd.Series(close.index[df0 - 1], index = close.index[close.shape[0] - df0.shape[0]:])
+    df0 = close.loc[df0.index]/ close.loc[df0.array].array - 1
+    df0 = df0.ewm(span = span0).std()
+    return df0
 
 def daily_vol_est(close: pd.Series, window: int = 20):
     vol = close.pct_change().dropna()
