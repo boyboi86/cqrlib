@@ -1,39 +1,34 @@
 # -*- coding: utf-8 -*-
 """
 construct simple data bars
-no numba included
+Can use yahoo data or retrieve single data call from utli folder
 """
 import numpy as np
 import pandas as pd
 
-def dd_bars(df, dv_column, m):
-    t = df[dv_column]
-    ts = 0
-    idx = []
+def dd_bars(df: pd.DataFrame, column: pd.Series, m: int):
+    t, ts, idx = column, 0, []
     for i, x in enumerate(t):
         ts += x
         if ts >= m:
-            idx.append(i)
-            ts = 0
+            ts = 0; idx.append(i)
             continue
-    return idx
-
-def dd_bar_df(df, dv_column, m):
-    idx = dd_bars(df, dv_column, m)
     return df.iloc[idx]
 
+def dollar_bar(df: pd.DataFrame, m: int):
+    if 'DV' in df.columns:
+        column = df['DV']
+    d_b = dd_bars(df, column, m)
+    return d_b
 
-def dd_bar_cum(df, dv_column, m, window):
-    df0 = dd_bar_df(df, dv_column, m)
-    idx, cum_sum, _up, _dn = [], 0, 0, 0
-    df0 = daily_vol(df0['ES=F'], span0 = 100)
-    limit = df0.rolling(window).std()
-    for i, value in enumerate(df0[1:]):
-        cum_sum += value
-        _up, _dn = max(0, _up + value), min(0, _dn + value)
-        if value > limit[i]:
-            _up = 0; idx.append(i)
-        elif value < - limit[i]:
-            _dn = 0; idx.append(i)
-        
-    return df0.iloc[idx]
+def volume_bar(df: pd.DataFrame, m: int):
+    if 'V' in df.columns:
+        column = df['V']
+    v_t = dd_bars(df, column, m)
+    return v_t
+
+def tick_bar(df0: pd.DataFrame, m: int):
+    if 'Close' in df.columns:
+        column = df['Close']
+    t_b = dd_bars(df, column, m)
+    return t_b
