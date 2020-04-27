@@ -9,7 +9,6 @@
 <p>Not everything here is for option, some were meant for futures related i.e. Index (E-mini S&P500), cypto, commodities (LNG, Crude) etc.</p>
 <p>Most of the codes for futures are meant to fit Yahoo finance daily data</p>
 <p>General concept still revolves around market micro-structure, mean-reversion, volatility cone etc</p>
-<p>Side Note: For multiprocessor found within this repo may cause lag up to 6 hours, make sure you machine can support</p>
 <p>using pandas 1.0.3</p>
 
 <h2><u>whats included?</u></h2>
