@@ -9,10 +9,11 @@
 <p>Not everything here is for option, some were meant for futures related i.e. Index (E-mini S&P500), cypto, commodities (LNG, Crude) etc.</p>
 <p>Most of the codes for futures are meant to fit Yahoo finance daily data</p>
 <p>General concept still revolves around market micro-structure, mean-reversion, volatility cone etc</p>
-<p>You may wish to go to other repo for HFT related codes if you are in a hurry</p>
+<p>Side Note: For multiprocessor found within this repo may cause lag up to 6 hours, make sure you machine can support</p>
+<p>using pandas 1.0.3</p>
 
 <h2><u>whats included?</u></h2>
-<p><u>Volatility/ Option Related</u></p>
+<h3><u>Volatility/ Option Related</u></h3>
 <ul>
   <li>Black-Scholes-Merton Option Theoretical pricing, IV, Delta, Gamma, Vega</li>
   <li>Premium Calculator</li>
@@ -24,14 +25,14 @@
   <li>EWMA Daily Volatility Estimator</li>
   <li>Garman Class Volatility</li>
 </ul>
-<p><u>Data Structure/ Machine-learning related/ Futures Related</u></p>
+<h3><u>Data Structure/ Machine-learning related/ Futures Related</u></h3>
 <ul>
   <li>Standard Data Bars</li>
   <li>Imbalance Bars</li>
   <li>Principle Component Analysis (PCA)</li>
   <li>Support Vectors Machine (SVM)</li>
 </ul>
-<p><u>Algorithm Solvers/ Hypothesis Test</u></p>
+<h3><u>Algorithm Solvers/ Hypothesis Test</u></h3>
 <ul>
   <li>Solvers</li>
   <li>Normality Test</li>
