@@ -25,9 +25,12 @@
   <li>Garman Class Volatility</li>
 </ul>
 <h3><u>Data Structure/ Machine-learning related/ Futures Related</u></h3>
+<p>Some juypter notebook tutorial to walk you through basic steps to create a mean-reversion strategy</p>
 <ul>
   <li>Standard Data Bars</li>
   <li>Imbalance Bars</li>
+  <li>Fractional Differentiate</li>
+  <li>Sequential bootstrapping</li>
   <li>Principle Component Analysis (PCA)</li>
   <li>Support Vectors Machine (SVM)</li>
 </ul>
