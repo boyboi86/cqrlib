@@ -5,6 +5,10 @@ triple barrier methods concept and code snippets from Marco Lopez AFML
 import numpy as np
 import pandas as pd
 
+from mlfinlab.util.multiprocess import mp_pandas_obj
+
+mpPandasObj = mp_pandas_obj
+
 def applyPtSlOnT1(close,events,ptSl,molecule):
     # apply stop loss/profit taking, if it takes place before t1 (end of event)
     events_=events.loc[molecule]
