@@ -2,14 +2,14 @@
 Contains the logic from AFML chapter 20 on multiprocessing and vectorization.
 
 code snippets from mlfinlab
+
+https://github.com/hudson-and-thames/mlfinlab/tree/master/mlfinlab
 """
 
 import sys
 import time
 import datetime as dt
-
 import multiprocessing as mp
-
 import numpy as np
 import pandas as pd
 

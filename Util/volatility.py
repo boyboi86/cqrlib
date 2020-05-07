@@ -3,8 +3,8 @@ import numpy as np
 
 def daily_vol(close: pd.Series, span0: int = 100):
     '''
-    This may not work in daily data but might work in HFT
-    Code snippet from AFML
+    AFML page 44. 3.1 snippet
+    The original daily volatility
     '''
     df0 = close.index.searchsorted(close.index - pd.Timedelta(days = 1))
     df0 = df0[df0 > 0]
@@ -13,10 +13,26 @@ def daily_vol(close: pd.Series, span0: int = 100):
     df0 = df0.ewm(span = span0).std()
     return df0
 
-def daily_vol_est(close: pd.Series, window: int = 20):
-    vol = close.pct_change().dropna()
-    vol = vol.ema(window).std()
-    return vol
+def get_vol(data: pd.Series, span0: int = 100, period: str = 'days', num_period: int = 1):
+    '''
+    AFML page 44. 3.1 snippet
+    Modify from the original daily volatility
+    
+    This will retrieve an estimate of volatility based on initial params
+    The modification is to track stablility count etc and for other research
+    
+    param: pd.Series => data use close price
+    param: int => num of samples for ewm std
+    param: datetime/ string => specify Day, Hour, Minute, Second, Milli, Micro, Nano
+    param: int => frequency
+    '''
+    freq = str(num_period) + period
+    df0 = data.index.searchsorted(data.index - pd.Timedelta(freq))
+    df0 = df0[df0 > 0]
+    df0 = pd.Series(data.index[df0 - 1], index = data.index[data.shape[0] - df0.shape[0]:])
+    df0 = data.loc[df0.index]/data.loc[df0.array].array - 1
+    df0=df0.ewm(span = span0).std()
+    return df0
 
 def get_parksinson_vol(high: pd.Series, low: pd.Series, window: int = 20):
     ret = np.log(high / low)  # High/Low return
