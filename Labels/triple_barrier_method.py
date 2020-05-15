@@ -1,128 +1,234 @@
-"""
-triple barrier methods concept and code snippets from Marco Lopez AFML
-"""
-
 import numpy as np
 import pandas as pd
+import warnings
+from research.Util.multiprocess import mp_pandas_obj
 
-from mlfinlab.util.multiprocess import mp_pandas_obj
 
-mpPandasObj = mp_pandas_obj
-
-def applyPtSlOnT1(close,events,ptSl,molecule):
-    # apply stop loss/profit taking, if it takes place before t1 (end of event)
-    events_=events.loc[molecule]
-    out=events_[['t1']].copy(deep=True)
-    if ptSl[0]>0: pt=ptSl[0]*events_['trgt']
-    else: pt=pd.Series(index=events.index) # NaNs
-    if ptSl[1]>0: sl=-ptSl[1]*events_['trgt']
-    else: sl=pd.Series(index=events.index) # NaNs
-    for loc,t1 in events_['t1'].fillna(close.index[-1]).iteritems():
-        df0=close[loc:t1] # path prices
-        df0=(df0/close[loc]-1)*events_.at[loc,'side'] # path returns
-        out.loc[loc,'sl']=df0[df0<sl[loc]].index.min() # earliest stop loss
-        out.loc[loc,'pt']=df0[df0>pt[loc]].index.min() # earliest profit taking
+def _pt_sl_t1(data: pd.Series, events: pd.Series, ptSl: list, molecule):
+    '''
+    AFML pg 45 snippet 3.2
+    
+    Code snippet which tells you the logic of how a triple barrier will be formed.
+    In the event if price target is touched first before vertical barrier.
+    The func is created to be run with python multiprocesses module
+    
+    params: data => closing price
+    params: events => new dataframe with timestamp index, target, metalabel 
+    params: ptSl => an array [1,1] which will determine width of horizontal barriers
+    params: data => molecule which is part of multiprocess module, to break down jobs and allow parallelisation
+    
+    vertical barrier will be events_'t1', which will be part of the final func 
+    '''
+    events_ = events.reindex(molecule)
+    out = events_[['t1']].copy(deep = True)
+    if ptSl[0] > 0:
+        pt = ptSl[0] * events_['trgt']
+    else:
+        pt = pd.Series(index = events.index) #Series with index but no value NaNs
+    if ptSl[1] > 0:
+        sl = - ptSl[1] * events_['trgt']
+    else:
+        sl = pd.Series(index = events.index) #Series with index but no value NaNs
+    for loc, t1 in events_['t1'].fillna(data.index[-1]).iteritems():
+        df0 = data[loc:t1]
+        df0 = (df0/data[loc] - 1) * events_.at[loc, 'side']
+        out.loc[loc, 'sl'] = df0[df0 < sl[loc]].index.min()
+        out.loc[loc, 'pt'] = df0[df0 > pt[loc]].index.min()
     return out
-# =======================================================
-# Gettting Time of First Touch (getEvents) [3.3]
-def getEvents(close, tEvents, ptSl, trgt, minRet, numThreads,t1=False, side=None):
-    #1) get target
-    trgt=trgt.loc[tEvents]
-    trgt=trgt[trgt>minRet] # minRet
-    #2) get t1 (max holding period)
-    if t1 is False:t1=pd.Series(pd.NaT, index=tEvents)
-    #3) form events object, apply stop loss on t1
-    if side is None:side_,ptSl_=pd.Series(1.,index=trgt.index), [ptSl[0],ptSl[0]]
-    else: side_,ptSl_=side.loc[trgt.index],ptSl[:2]
-    events=(pd.concat({'t1':t1,'trgt':trgt,'side':side_}, axis=1)
-            .dropna(subset=['trgt']))
-    df0=mpPandasObj(func=applyPtSlOnT1,pdObj=('molecule',events.index),
-                    numThreads=numThreads,close=close,events=events,
-                    ptSl=ptSl_)
-    events['t1']=df0.dropna(how='all').min(axis=1) #pd.min ignores nan
-    if side is None:events=events.drop('side',axis=1)
+
+
+def tri_bar(data: pd.Series, events: pd.Series, trgt: pd.Series, min_req: float, 
+               num_threads: int = 1, ptSl: list = [1,1], t1: pd.Series = False, side: pd.Series = None):
+    '''
+    AFML pg 50 snippet 3.6
+    This function will return triple barrier data based on params.
+    
+    There is some amendment to the original snippet provided, to prevent error.
+    Added side_ variable which act as boolean counter: 0 = No side prediction provided.(No primary model)
+                                                       1 = Side prediction provided. (Primary model)
+                                                       
+    Some amendment to Pandas multiprocessor object, due to the my machine limitation. 
+    Default thread is 1 for all func that requires multiprocessing.
+    Pandas multiprocessor Pool contains a min 1 threads, so default is 2 threads.
+    
+    ptSl is upper and lower limit of spot price. 
+    Hence to apply additional multipler effect provide a positive value more than 1
+    
+    params: data => close price series
+    params: events => Datetime series sys_cusum filter
+    params: trgt => target from sample pct change
+    params: min_req => minimal requirement (Recommend: transaction cost as a percentage)
+    last 4 params: contains default values
+                    optional params: num_threads => integer this is for multiprocessing per core
+                    optional params: ptSl => list(), [] width of profit taking and stop loss
+                    optional params: t1 => pd.DataFrame for vertical_bar()
+                    optional params: side => pd.Series() side column must be setup based on primary model
+    
+    '''
+    if isinstance(data, (str, float, int)):
+        raise ValueError('Data must be numpy ndarray or pandas series i.e. close price series')
+        
+    if isinstance(events, (str, float, int)):
+        raise ValueError('Data must be numpy ndarray or pandas series i.e. datetime series')
+    elif events.index.shape[0] != data.index.shape[0]:
+        raise ValueError('Data and events index shape must be same')
+        
+    if isinstance(trgt, (str, float, int)):
+        raise ValueError('Data must be numpy ndarray or pandas series i.e. sample data percentage change series')
+    
+    # Optional params test
+    if isinstance(num_threads, (str, float, np.ndarray, pd.Series, list)) or (num_threads < 0):
+        raise ValueError('num_threads must be non-zero postive integer i.e. 2')
+        
+    if isinstance(ptSl, (str, float, int)):
+        raise ValueError('Data must be numpy ndarray or list i.e. [1,1]')
+    elif ptSl[0] == np.nan or ptSl[1] == np.nan:
+        raise ValueError('Data must be numpy 1darray shape(1,2) i.e. [1,1]')
+    elif ptSl[0] <= 0 or ptSl[1] <= 0:
+        # test case for irrational users
+        raise ValueError('Data must be numpy 1darray shape(1,2) with values more than 0 i.e. [1,1]')
+
+    
+    if t1.isnull().values.any() and isinstance(t1, (str, float, int)):
+        raise ValueError('t1 must be pd.Series with datetime index, pls use vertical_bar func provided.')
+    else:
+        warnings.warn("No vertical barrier provided. Not Recommended.")
+                   
+    if side != None and isinstance(side, (pd.Series, np.ndarray)):
+        raise ValueError('side must be pd.Series based on primary model prediction.')
+    else:
+        warnings.warn("No side prediction provided. Not recommended.")
+        
+    trgt = trgt.reindex(events)
+    trgt = trgt[trgt > min_req]
+    if t1 is False:
+        t1 = pd.Series(pd.NaT, index = events)
+    if side is None:
+        side_, side, ptSl_ = 0, pd.Series(1., index = trgt.index), [ptSl[0], ptSl[0]]
+    else:
+        side_, side, ptSl_ = 1, side.reindex(trgt.index), ptSl[:2]
+    events=pd.concat({'t1':t1, 'trgt':trgt, 'side':side}, axis = 1).dropna(subset=['trgt'])
+    df0=mp_pandas_obj(func = _pt_sl_t1, 
+                      pd_obj=('molecule', events.index), 
+                      num_threads = num_threads,
+                      data = data,
+                      events = events,
+                      ptSl = ptSl_)
+    events['t1'] = df0.dropna(how = 'all').min(axis = 1) # pd.min ignore NaNs
+    if side_ == 0:
+        events = events.drop('side', axis = 1)
     return events
+
+
 # =======================================================
-# Adding Vertical Barrier [3.4]
-def addVerticalBarrier(tEvents, close, numDays=1):
-    t1=close.index.searchsorted(tEvents+pd.Timedelta(days=numDays))
-    t1=t1[t1<close.shape[0]]
-    t1=(pd.Series(close.index[t1],index=tEvents[:t1.shape[0]]))
+
+def vert_bar(data: pd.Series, events:pd.DatetimeIndex, period: str = 'days', freq: int = 1):
+    '''
+    AFML pg 49 modified snippet 3.4
+    This is not the original snippet, there is some slight change to period
+    
+    params: data => close price
+    params: period => weeks, days, hours, mins
+    params: freq => frequency i.e. 1
+    
+    This func does not include holiday and weekend exclusion.
+    Strongly encourage you to ensure your series does not include non-trading days. 
+    As well as after trading hours, to prevent OMO.
+    
+    Otherwise you may end up having non-trading days as an as exit event where it could exceed initial parameter.
+    i.e. trigger event on Fri and exit on Monday when vertical barrier only 1 day.
+    
+    Another note:
+    If you are using information driven bars or any series that are not in chronological sequence.
+    This func will automatically choose the nearest date time index which may result in more than intended period.
+    '''
+    if isinstance(period, (pd.Series, np.ndarray, list, int, float)):
+        raise ValueError('Period should be string i.e. days')
+    elif period != 'days':
+        warnings.warn('Recommend using days for simplicity')
+    
+    if isinstance(freq, (pd.Series, np.ndarray, list, str, float )):
+        raise ValueError('Frequency must be in integer, other dtypes not accepted i.e. float, numpy.ndarray')
+    elif freq <= 0:
+        raise ValueError('Frequency must be in positive integer')
+        
+    _period = str(freq) + period
+    t1 = data.index.searchsorted(events + pd.Timedelta(_period))
+    t1 = t1[t1 < data.shape[0]]
+    t1 = pd.Series(data.index[t1], index = events[:t1.shape[0]])
     return t1
 
 # =======================================================
 # Labeling for side and size [3.5, 3.8]
-
-
-def getBins(events, close, t1=None):
-    '''
-    Compute event's outcome (including side information, if provided).
-    events is a DataFrame where:
-    -events.index is event's starttime
-    -events['t1'] is event's endtime
-    -events['trgt'] is event's target
-    -events['side'] (optional) implies the algo's position side
-    -t1 is original vertical barrier series
-    Case 1: ('side' not in events): bin in (-1,1) <-label by price action
-    Case 2: ('side' in events): bin in (0,1) <-label by pnl (meta-labeling)
-    '''
-    # 1) prices aligned with events
-    events_ = events.dropna(subset=['t1'])
-    px = events_.index.union(events_['t1'].values).drop_duplicates()
-    px = close.reindex(px, method='bfill')
-    # 2) create out object
-    out = pd.DataFrame(index=events_.index)
-    out['ret'] = px.loc[events_['t1'].values].values / px.loc[
-        events_.index] - 1
-    if 'side' in events_: out['ret'] *= events_['side']  # meta-labeling
-    out['bin'] = np.sign(out['ret'])
-
-    if 'side' not in events_:
-        # only applies when not meta-labeling.
-        # to update bin to 0 when vertical barrier is touched, we need the
-        # original vertical barrier series since the events['t1'] is the time
-        # of first touch of any barrier and not the vertical barrier
-        # specifically. The index of the intersection of the vertical barrier
-        # values and the events['t1'] values indicate which bin labels needs
-        # to be turned to 0.
-        vtouch_first_idx = events[events['t1'].isin(t1.values)].index
-        out.loc[vtouch_first_idx, 'bin'] = 0.
-
-    if 'side' in events_: out.loc[out['ret'] <= 0, 'bin'] = 0  # meta-labeling
-    return out
-
-def getBinsOld(events, close):
-    '''
-    Compute event's outcome (including side information, if provided).
-    events is a DataFrame where:
-    -events.index is event's starttime
-    -events['t1'] is event's endtime
-    -events['trgt'] is event's target
-    -events['side'] (optional) implies the algo's position side
-    Case 1: ('side' not in events): bin in (-1,1) <-label by price action
-    Case 2: ('side' in events): bin in (0,1) <-label by pnl (meta-labeling)
-    '''
-    #1) prices aligned with events
-    events_=events.dropna(subset=['t1'])
-    px=events_.index.union(events_['t1'].values).drop_duplicates()
-    px=close.reindex(px,method='bfill')
-    #2) create out object
-    out=pd.DataFrame(index=events_.index)
-    out['ret']=px.loc[events_['t1'].values].values/px.loc[events_.index]-1
-    if 'side' in events_:out['ret']*=events_['side'] # meta-labeling
-    out['bin']=np.sign(out['ret'])
-    if 'side' in events_:out.loc[out['ret']<=0,'bin']=0 # meta-labeling
-    return out
-
-def dropLabels(events, minPct=.05):
+    
+def drop_label(events: pd.Series, min_pct: float = .05):
     # apply weights, drop labels with insufficient examples
     '''
     Drop labels with insufficient example
     During training stage only labels deem somewhat reliable will be used
+    
+    Normalized outcome as a measure, to maintain shape of data sample.
+    Default value is 0.05, any extreme value at [-0.95, 0.95] will be dropped as rare occurance.
+    
+    params: events => DataFrame from labels func
+    params: min_pct => float value as a meansure based on normalization.
     '''
+    if isinstance(min_pct,(list, np.ndarray, pd.Series)) or min_pct <= 0:
+        raise ValueError('min_pct must be positive float i.e. 0.05')
+    elif min_pct > 1:
+        raise ValueError('min_pct must be within range(0,1) i.e. 0.05')
+        
+    if isinstance(events, (float, int, str)):
+        raise ValueError('events must be pd.DataFrame, kindly use label func provided')
+    
     while True:
         df0=events['bin'].value_counts(normalize=True)
-        if df0.min()>minPct or df0.shape[0]<3:break
-        print('dropped label: ', df0.argmin(),df0.min())
-        events=events[events['bin']!=df0.argmin()]
+        if df0.min() > min_pct or df0.shape[0] < 3:
+            break
+        try:
+            events=events[events['bin']!=df0.argmin()]
+            print('dropped label: ', df0.argmin(),df0.min())
+        except:
+            events=events[events['bin']!=df0.idxmin()]
+            print('dropped label: ', df0.idxmin(),df0.min())
     return events
+
+def label(data: pd.Series, events: pd.DataFrame):
+    '''
+    AFML page 51 snippet 3.7
+    Basically this func will return meta-labels or price-labels, which is dependent on 'side' if exist.
+    
+    If meta-label used it return boolean values (0,1) where 0 means not profitable or vertical barrier was hit first
+    and 1 would mean profitable. 
+    
+    This method will complement a primary model with trading rules, and act as a secondary model.
+    
+    Note:
+    Case 1: ('side' not in events): bin in (-1,1) <-label by price action
+    Case 2: ('side' in events): bin in (0,1) <-label by pnl (meta-labeling/ recommended)
+    
+    params: data => close price which will be used to compare if targets were profitable
+    params: events = > DataFrame from triple barrier func
+                        -events.index is event's starttime
+                        -events['t1'] is event's endtime
+                        -events['trgt'] is event's target
+                        -events['side'] (optional) implies the algo's position side
+    
+    '''
+    if isinstance(data, (str, float, int)):
+        raise ValueError('Data must be numpy ndarray or pandas series i.e. close price series')
+    if isinstance(events, (str, float, int, list)):
+        raise ValueError('Data must be pd.DataFrame, this function is used after triple barrier function i.e. close price series')
+    
+    events_ = events.dropna(subset=['t1'])
+    px = events_.index.union(events_['t1'].values).drop_duplicates()
+    px=data.reindex(px, method='bfill')
+    
+    out = pd.DataFrame(index = events_.index)
+    out['ret'] = px.loc[events_['t1'].values].values/ px.loc[events_.index] - 1
+    if 'side' in events_:
+        out['ret']*=events_['side'] #meta-labeling
+    out['bin'] = np.sign(out['ret'])
+    if 'side' in events_:
+        out.loc[out['ret'] <= 0, 'bin'] = 0
+    return out
