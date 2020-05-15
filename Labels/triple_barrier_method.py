@@ -205,8 +205,8 @@ def drop_label(events: pd.Series, min_pct: float = .05):
         raise ValueError('min_pct must be positive float i.e. 0.05')
     elif min_pct > 1:
         raise ValueError('min_pct must be within range(0,1) i.e. 0.05')
-        
-    if isinstance(events, (float, int, str, list, dict, tuple)):
+
+    if isinstance(events,(int, float, str, list, dict, tuple)):
         raise ValueError('events must be pd.DataFrame, kindly use label func provided')
     
     while True:
@@ -245,8 +245,9 @@ def label(data: pd.Series, events: pd.DataFrame):
     '''
     if isinstance(data, (str, float, int)):
         raise ValueError('Data must be numpy ndarray or pandas series i.e. close price series')
-    if isinstance(events, (str, float, int, list)):
+    if isinstance(events, (int, float, str, list, dict, tuple)):
         raise ValueError('Data must be pd.DataFrame, this function is used after triple barrier function i.e. close price series')
+
     
     events_ = events.dropna(subset=['t1'])
     px = events_.index.union(events_['t1'].values).drop_duplicates()
