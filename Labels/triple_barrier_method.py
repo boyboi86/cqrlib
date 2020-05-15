@@ -30,7 +30,7 @@ def _pt_sl_t1(data: pd.Series, events: pd.Series, ptSl: list, molecule):
     else:
         sl = pd.Series(index = events.index) #Series with index but no value NaNs
     for loc, t1 in events_['t1'].fillna(data.index[-1]).iteritems():
-        df0 = data[loc:t1]
+        df0 = data[loc:t1] #if tri_bar does not create new assign dataframe, data will go haywire when events
         df0 = (df0/data[loc] - 1) * events_.at[loc, 'side']
         out.loc[loc, 'sl'] = df0[df0 < sl[loc]].index.min()
         out.loc[loc, 'pt'] = df0[df0 > pt[loc]].index.min()
@@ -89,20 +89,34 @@ def tri_bar(data: pd.Series, events: pd.DatetimeIndex, trgt: pd.Series, min_req:
     elif ptSl[0] <= 0 or ptSl[1] <= 0:
         # test case for irrational users
         raise ValueError('Data must be numpy 1darray shape(1,2) with values more than 0 i.e. [1,1]')
+        
+    if isinstance(t1, (pd.Series)):
+        if t1.isnull().values.any():
+            raise ValueError('t1 cannot have NaTs, pls use vertical_bar func provided.')
+        elif isinstance(t1.dtype, (str, float, int, list, dict, tuple)):
+            raise ValueError('t1 must be pd.Series with datetime values, pls use vertical_bar func provided.')
+        elif t1.dtype != 'datetime64[ns]':
+            raise ValueError('t1 must be pd.Series with datetime, pls use vertical_bar func provided.')
+    elif t1 == False:
+         warnings.warn('\nNot Recommended: No vertical barrier provided')
+         
+    if isinstance(side, (pd.Series)):
+        if side.isnull().values.any():
+            raise ValueError('side must be pd.Series based on primary model prediction w/o NaNs.')
+        elif isinstance(side.dtype, (str, list, dict, tuple)):
+            raise ValueError('side must be pd.Series based on primary model prediction with integer or float values i.e. (-1,1), (0,1), (-1,0)')
+        elif side.max() > 1 or side.min() < -1:
+            raise ValueError('side must be pd.Series based on primary model prediction with values range(-1, 1).')
+    elif side == None:
+        warnings.warn('Not Recommended: No side prediction provided')
 
-    if t1.isnull().values.any() or isinstance(t1, (str, float, int, list, dict, tuple)):
-        raise ValueError('t1 must be pd.Series with datetime index, pls use vertical_bar func provided.')
-                  
-    if side.isnull().values.any() or isinstance(side, (str, float, int, list, dict, tuple)):
-        raise ValueError('side must be pd.Series based on primary model prediction.')
-
-    data = pd.DataFrame(index = events).assign(data = data).squeeze()
+    data = pd.DataFrame(index = events).assign(data = data).squeeze() #recreate data based on index
     trgt = trgt.reindex(events)
     trgt = trgt[trgt > min_req]
     if t1 is False:
         t1 = pd.Series(pd.NaT, index = events)
     if side is None:
-        side_, side, ptSl_ = 0, pd.Series(1., index = trgt.index), [ptSl[0], ptSl[0]]
+        side_, side, ptSl_ = 0, pd.Series(1., index = trgt.index), [ptSl[0], ptSl[0]] # create side_ as counter
     else:
         side_, side, ptSl_ = 1, side.reindex(trgt.index), ptSl[:2]
     events=pd.concat({'t1':t1, 'trgt':trgt, 'side':side}, axis = 1).dropna(subset=['trgt'])
@@ -114,7 +128,7 @@ def tri_bar(data: pd.Series, events: pd.DatetimeIndex, trgt: pd.Series, min_req:
                       ptSl = ptSl_)
     events['t1'] = df0.dropna(how = 'all').min(axis = 1) # pd.min ignore NaNs
     if side_ == 0:
-        events = events.drop('side', axis = 1)
+        events = events.drop('side', axis = 1) #if side_ counter is set to 0
     return events
 
 
@@ -144,13 +158,25 @@ def vert_bar(data: pd.Series, events:pd.DatetimeIndex, period: str = 'days', fre
     If you are using information driven bars or any series that are not in chronological sequence.
     This func will automatically choose the nearest date time index which may result in more than intended period.
     '''
+    if isinstance(data,(int, float, str, list, dict, tuple)):
+        raise ValueError('data must be pandas series with DatetimeIndex i.e. close price series')
+    elif isinstance(data.squeeze().dtype, (str, list, dict, tuple)):
+        raise ValueError('data dtype must be integer or float value i.e. 1.0, 2')
+    elif data.index.dtype != 'datetime64[ns]':
+        raise ValueError('data index does not contain datetime')
+        
+    if isinstance(events,(int, float, str, list, dict, tuple)):
+        raise ValueError('events must be pandas DatetimeIndex')
+    elif events.dtype != 'datetime64[ns]':
+        raise ValueError('events must be pandas DatetimeIndex')
+        
     if isinstance(period, (pd.Series, np.ndarray, list, int, float)):
         raise ValueError('Period should be string i.e. days')
     elif period != 'days':
         warnings.warn('Recommend using days for simplicity')
     
     if isinstance(freq, (pd.Series, np.ndarray, list, str, float )):
-        raise ValueError('Frequency must be in integer, other dtypes not accepted i.e. float, numpy.ndarray')
+        raise ValueError('Frequency must be in integer, other dtypes not accepted i.e. float, np.ndarray')
     elif freq <= 0:
         raise ValueError('Frequency must be in positive integer')
         
@@ -180,7 +206,7 @@ def drop_label(events: pd.Series, min_pct: float = .05):
     elif min_pct > 1:
         raise ValueError('min_pct must be within range(0,1) i.e. 0.05')
         
-    if isinstance(events, (float, int, str)):
+    if isinstance(events, (float, int, str, list, dict, tuple)):
         raise ValueError('events must be pd.DataFrame, kindly use label func provided')
     
     while True:
