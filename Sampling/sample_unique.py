@@ -1,41 +1,105 @@
-# -*- coding: utf-8 -*-
-"""
-Pls import myPandasObj from Util for multi-threading process
-"""
-
 import pandas as pd
 import numpy as np
 
-from mlfinlab.sampling.concurrent import num_concurrent_events, get_av_uniqueness_from_triple_barrier
-from mlfinlab.util.multiprocess import mp_pandas_obj
+
+from research.Util.multiprocess import mp_pandas_obj
 
 p = print
 
 # Estimating uniqueness of a label [4.1]
-def mpNumCoEvents(closeIdx,t1,molecule):
+def _num_co_events(dataIndex: pd.DatetimeIndex, t1: pd.Series, molecule):
     '''
     Compute the number of concurrent events per bar.
     +molecule[0] is the date of the first event on which the weight will be computed
     +molecule[-1] is the date of the last event on which the weight will be computed
     Any event that starts before t1[modelcule].max() impacts the count.
+    
+    params: dataIndex => datetime Index based on co_event data input
+    params: t1 => vert_bar t1, use in conjunction with tri_bar to generate t1
+    params: molecule => multiprocessing
     '''
     #1) find events that span the period [molecule[0],molecule[-1]]
-    t1=t1.fillna(closeIdx[-1]) # unclosed events still must impact other weights
+    t1=t1.fillna(dataIndex[-1]) # unclosed events still must impact other weights
     t1=t1[t1>=molecule[0]] # events that end at or after molecule[0]
     t1=t1.loc[:t1[molecule].max()] # events that start at or before t1[molecule].max()
     #2) count events spanning a bar
-    iloc=closeIdx.searchsorted(np.array([t1.index[0],t1.max()]))
-    count=pd.Series(0,index=closeIdx[iloc[0]:iloc[1]+1])
-    for tIn,tOut in t1.iteritems():count.loc[tIn:tOut]+=1.
+    iloc=dataIndex.searchsorted(pd.DatetimeIndex([t1.index[0],t1.max()]))
+    count=pd.Series(0,index=dataIndex[iloc[0]:iloc[1]+1])
+    for tIn,tOut in t1.iteritems():
+        count.loc[tIn:tOut]+=1.
     return count.loc[molecule[0]:t1[molecule].max()]
+
 # =======================================================
 # Estimating the average uniqueness of a label [4.2]
-def mpSampleTW(t1,numCoEvents,molecule):
+def _mp_sample_TW(t1: pd.DatetimeIndex, num_conc_events: int, molecule):
+    '''
+    params: t1 => vert_bar end period
+    params: num_conc_events => number of cocurrent events generated from _num_co_events,
+                               This is an input not a func.
+    params: molecule => multiprocess
+    '''
     # Derive avg. uniqueness over the events lifespan
-    wght=pd.Series(index=molecule)
+    wght=pd.Series(0.0, index = molecule) # NaNs no val index only
     for tIn,tOut in t1.loc[wght.index].iteritems():
-        wght.loc[tIn]=(1./numCoEvents.loc[tIn:tOut]).mean()
+        wght.loc[tIn]=(1./ num_conc_events.loc[tIn:tOut]).mean()
+    
     return wght
+
+def co_events(data: pd.Series, events: pd.DataFrame, num_threads: int):
+    '''
+    params: data => ORIGINAL close price series from imported data src
+    params: events => this is used in conjunction to vert_bar function or tri_bar.
+                      require pandas series with datetime value to check concurrent samples.
+    optional
+    params: num_threads => number of process to spawn for multiprocessing, default is 1. Pls do not change.
+    
+    t1 is the end of period dor vert_bar func, 
+    where t0 which is the beginning period based on filter criteria will become vert_bar index.
+    '''
+    if isinstance(data, pd.Series):   
+        if isinstance(data.dtype, (str, dict, tuple, list)):
+            raise ValueError('data input must be pandas Series with dtype either float or integer value i.e. close price series')
+        if data.isnull().values.any():
+            raise ValueError('data series contain isinf, NaNs')
+            
+    if isinstance(data, pd.DataFrame):
+        if isinstance(data.squeeze().dtype, (str, dict, tuple, list)):
+            raise ValueError('data input must be pandas Series with dtype either float or integer value i.e. close price series')
+        elif not isinstance(data.squeeze(), pd.Series):
+            raise ValueError('data input must be pandas Series i.e. close price series')
+        else:
+            data = data.squeeze()
+    else:
+        raise ValueError('data input must be pandas Series with dtype either float or integer value i.e. close price series')
+        
+    if isinstance(events, pd.DataFrame):
+        if isinstance(events, (int, str, float, dict, tuple, list)):
+            raise ValueError('data input must be pandas DatetimeIndex or datetime values')
+        if events.isnull().values.any():
+            raise ValueError('events series contain isinf, NaNs, NaTs')
+        if events.index.dtype != 'datetime64[ns]' or events['t1'].dtype != 'datetime64[ns]':
+            raise ValueError('event["t1"] or devents.index is not datetime value')
+    else:
+        raise ValueError('data input must be pandas DateFrame please use tri_bar func provided')
+    
+        
+    if isinstance(num_threads, (str, float, dict, tuple, list, pd.Series, np.ndarray)):
+        raise ValueError('data input must be integer i.e. 1')
+
+    out = pd.DataFrame()
+    df0=mp_pandas_obj(func = _num_co_events, 
+                      pd_obj=('molecule', events.index), 
+                      num_threads = num_threads,
+                      dataIndex = data.index,
+                      t1 = events['t1'])
+    df0 = df0.loc[~df0.index.duplicated(keep='last')]
+    df0 = df0.reindex(df0.index).fillna(0)
+    out['tW'] = mp_pandas_obj(_mp_sample_TW, ('molecule', events.index),
+                              num_threads = num_threads,
+                              t1=events['t1'],
+                              num_conc_events=df0)
+    return out
+'''
 # =======================================================
 # Sequential Bootstrap [4.5.2]
 ## Build Indicator Matrix [4.3]
@@ -161,3 +225,4 @@ def get_weights_by_time_decay(triple_barrier_events, close_series, num_threads=5
             return decay_w
         else:
             p('NaN values in triple_barrier_events, delete NaNs')
+'''
