@@ -90,13 +90,13 @@ def tri_bar(data: pd.Series, events: pd.DatetimeIndex, trgt: pd.Series, min_req:
         # test case for irrational users
         raise ValueError('Data must be numpy 1darray shape(1,2) with values more than 0 i.e. [1,1]')
 
-    if t1.isnull().values.any() and isinstance(t1, (str, float, int)):
+    if t1.isnull().values.any() or isinstance(t1, (str, float, int, list, dict, tuple)):
         raise ValueError('t1 must be pd.Series with datetime index, pls use vertical_bar func provided.')
                   
-    if side != None and isinstance(side, (pd.Series, np.ndarray)):
+    if side.isnull().values.any() or isinstance(side, (str, float, int, list, dict, tuple)):
         raise ValueError('side must be pd.Series based on primary model prediction.')
 
-        
+    data = pd.DataFrame(index = events).assign(data = data).squeeze()
     trgt = trgt.reindex(events)
     trgt = trgt[trgt > min_req]
     if t1 is False:
