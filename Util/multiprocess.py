@@ -17,8 +17,6 @@ except:
 import numpy as np
 import pandas as pd
 
-sys.modules['__main__'].__file__ = 'ipython'
-
 def _pickle_method(method):
     func_name=method.im_func.__name__
     obj = method.im_self
@@ -224,10 +222,10 @@ def process_jobs(jobs, task=None, num_threads=24):
     outputs = pool.imap_unordered(expand_call, jobs)
     out = []
     time0 = time.time()
-
     # Process asynchronous output, report progress
     for i, out_ in enumerate(outputs, 1):
         out.append(out_)
+        print(out, "this out")
         report_progress(i, len(jobs), time0, task)
 
     pool.close()
