@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 # asset3    [x1   x2    x3    x4]]
 # 
 # =======================================================================
-
+'''
 asset_arr = np.array([asset1, asset2, asset3])
 
 def asset_risk(asset_arr):
@@ -42,3 +42,4 @@ def pca_weight(cov_matrix, risk_dist = None, risk_tar = 1.0):
     loads = risk_tar * (risk_dist/e_val) ** 0.5
     weights = np.dot(e_val, np.reshape(loads, (-1,1)))
     return weights
+'''
