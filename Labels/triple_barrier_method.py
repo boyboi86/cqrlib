@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import datetime
 import warnings
 from research.Util.multiprocess import mp_pandas_obj
 
@@ -17,7 +18,6 @@ def _pt_sl_t1(data: pd.Series, events: pd.Series, ptSl: list, molecule):
     params: ptSl => an array [1,1] which will determine width of horizontal barriers
     params: data => molecule which is part of multiprocess module, to break down jobs and allow parallelisation
     
-    vertical barrier will be events_'t1', which will be part of the final func 
     '''
     events_ = events.reindex(molecule)
     out = events_[['t1']].copy(deep = True)
@@ -37,7 +37,7 @@ def _pt_sl_t1(data: pd.Series, events: pd.Series, ptSl: list, molecule):
     return out
 
 
-def tri_bar(data: pd.Series, events: pd.Series, trgt: pd.Series, min_req: float, 
+def tri_bar(data: pd.Series, events: pd.DatetimeIndex, trgt: pd.Series, min_req: float, 
                num_threads: int = 1, ptSl: list = [1,1], t1: pd.Series = False, side: pd.Series = None):
     '''
     AFML pg 50 snippet 3.6
@@ -55,7 +55,7 @@ def tri_bar(data: pd.Series, events: pd.Series, trgt: pd.Series, min_req: float,
     Hence to apply additional multipler effect provide a positive value more than 1
     
     params: data => close price series
-    params: events => Datetime series sys_cusum filter
+    params: events => Datetime series sys_cusum filter always
     params: trgt => target from sample pct change
     params: min_req => minimal requirement (Recommend: transaction cost as a percentage)
     last 4 params: contains default values
@@ -65,19 +65,21 @@ def tri_bar(data: pd.Series, events: pd.Series, trgt: pd.Series, min_req: float,
                     optional params: side => pd.Series() side column must be setup based on primary model
     
     '''
-    if isinstance(data, (str, float, int)):
+    if isinstance(data, (str, float, int, dict, tuple)):
         raise ValueError('Data must be numpy ndarray or pandas series i.e. close price series')
         
-    if isinstance(events, (str, float, int)):
-        raise ValueError('Data must be numpy ndarray or pandas series i.e. datetime series')
-    elif events.index.shape[0] != data.index.shape[0]:
-        raise ValueError('Data and events index shape must be same')
+    if isinstance(events, (str, float, int, dict, tuple)):
+        raise ValueError('Data must be pandas DatetimeIndex i.e. pd.DatetimeIndex series')
+    elif events.shape[0] != data.index.shape[0]:
+        warnings.warn('Data and events index shape must be same, reindex data to fit events')
+    else:
+        isinstance(events, datetime.datetime)
         
     if isinstance(trgt, (str, float, int)):
         raise ValueError('Data must be numpy ndarray or pandas series i.e. sample data percentage change series')
     
     # Optional params test
-    if isinstance(num_threads, (str, float, np.ndarray, pd.Series, list)) or (num_threads < 0):
+    if isinstance(num_threads, (str, float, list, dict, tuple, np.ndarray, pd.Series)) or (num_threads < 0):
         raise ValueError('num_threads must be non-zero postive integer i.e. 2')
         
     if isinstance(ptSl, (str, float, int)):
@@ -88,16 +90,12 @@ def tri_bar(data: pd.Series, events: pd.Series, trgt: pd.Series, min_req: float,
         # test case for irrational users
         raise ValueError('Data must be numpy 1darray shape(1,2) with values more than 0 i.e. [1,1]')
 
-    
     if t1.isnull().values.any() and isinstance(t1, (str, float, int)):
         raise ValueError('t1 must be pd.Series with datetime index, pls use vertical_bar func provided.')
-    else:
-        warnings.warn("No vertical barrier provided. Not Recommended.")
-                   
+                  
     if side != None and isinstance(side, (pd.Series, np.ndarray)):
         raise ValueError('side must be pd.Series based on primary model prediction.')
-    else:
-        warnings.warn("No side prediction provided. Not recommended.")
+
         
     trgt = trgt.reindex(events)
     trgt = trgt[trgt > min_req]
@@ -130,6 +128,10 @@ def vert_bar(data: pd.Series, events:pd.DatetimeIndex, period: str = 'days', fre
     params: data => close price
     params: period => weeks, days, hours, mins
     params: freq => frequency i.e. 1
+    
+    Vertical barrier will be events_'t1', which will be part of the final func
+    where based on filtered criteria (i.e. sys_csf) will generate a period using vert_bar based on freq and period input
+    the column is t1 is to maintain consistance so that we can continue to use in conjunction with other modules i.e. co_events
     
     This func does not include holiday and weekend exclusion.
     Strongly encourage you to ensure your series does not include non-trading days. 
