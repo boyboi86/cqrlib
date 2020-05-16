@@ -38,7 +38,7 @@ def _pt_sl_t1(data: pd.Series, events: pd.Series, ptSl: list, molecule):
 
 
 def tri_bar(data: pd.Series, events: pd.DatetimeIndex, trgt: pd.Series, min_req: float, 
-               num_threads: int = 1, ptSl: list = [1,1], t1: pd.Series = False, side: pd.Series = None):
+               num_threads: int = 3, ptSl: list = [1,1], t1: pd.Series = False, side: pd.Series = None):
     '''
     AFML pg 50 snippet 3.6
     This function will return triple barrier data based on params.
