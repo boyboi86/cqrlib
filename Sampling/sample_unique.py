@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-
+import datetime
 
 from research.Util.multiprocess import mp_pandas_obj
 
@@ -94,42 +94,137 @@ def co_events(data: pd.Series, events: pd.DataFrame, num_threads: int):
                       t1 = events['t1'])
     df0 = df0.loc[~df0.index.duplicated(keep='last')]
     df0 = df0.reindex(df0.index).fillna(0)
-    out['tW'] = mp_pandas_obj(_mp_sample_TW, ('molecule', events.index),
+    out['tW'] = mp_pandas_obj(func = _mp_sample_TW, 
+                              pd_obj = ('molecule', events.index),
                               num_threads = num_threads,
                               t1=events['t1'],
                               num_conc_events=df0)
     return out
-'''
+
 # =======================================================
 # Sequential Bootstrap [4.5.2]
 ## Build Indicator Matrix [4.3]
-def getIndMatrix(barIx,t1):
+
+def _idx_matrix(dataIdx, molecule):
+    '''
+    AFML pg 63 snippet 4.3
+    Calculates the number of times events sample overlaps each other
+    
+    Slight modification that allows a close price series and idx_matrix will extract based on series's index.
+    Alternatively input close price index directly is possible.
+    
+    params: data => close price series with DatetimeIndex
+    params: t1 => pandas DataFrame generated from tri_bar func, requires datetime index 
+    
+    Attempted to include mp_pandas_obj except: datetimeindex cannot be integer
+    '''            
     # Get Indicator matrix
-    indM=(pd.DataFrame(0,index=barIx,columns=range(t1.shape[0])))
-    for i,(t0,t1) in enumerate(t1.iteritems()):indM.loc[t0:t1,i]=1.
+    indM_ = pd.DataFrame(0, index = dataIdx, columns=np.arange(molecule.shape[0]))
+    for i,(t0,t1) in enumerate(molecule.iteritems()):
+        indM_.loc[t0:t1,i] = 1.
+    return indM_
+
+def idx_matrix(data: pd.Series, events: pd.DataFrame, num_threads: int = 3):
+    '''
+    This is a modified code snippet using pandas obj, otherwise it would have taken 20 mins to run non-parallel
+    Pls go through the code before using it.
+    
+    logic is still based on initial func stated in AFML pg 63
+    
+    params: data => close price series with datetime index
+    params: events => pandas DataFrame generated from tri_bar func
+    params: num_threads => Multiprocessing; The num of threads depends entirely on your rows. 
+                           It must be a multiple of total row count or molecule
+    '''
+    if isinstance(data, (pd.Series, pd.DataFrame)):        
+        if data.isnull().values.any():
+            raise ValueError('data series contain isinf, NaNs, NaTs')
+        elif isinstance(data, (str, list, dict, tuple, np.ndarray, pd.Series)):
+            raise ValueError('data series contain non-float or non-integer values')
+    else:
+        raise ValueError('data input  must be pandas Series with datetime Index')
+        
+    if isinstance(events, (pd.Series, pd.DataFrame)):        
+        if isinstance(events.t1, (str, list, dict, tuple, np.ndarray)):
+            raise ValueError('events.t1 value must be date time')
+    else:
+        raise ValueError('events input must be pandas DataFrame with datetime Index, pls use tri_bar func provided')
+        
+    if isinstance(num_threads, (str, list, dict, tuple, pd.Series, pd.DataFrame)):
+        raise ValueError('num_threads must be positive integer or float')
+        
+    for i in range(24, -1, -1): # experimental
+        if events.t1.shape[0] % i == 0:
+            num_threads = int(i)
+            break
+    
+    data = data.dropna() #create new index based on t1 events
+    dataIdx = data[events.index.min(): events.t1.max()].index
+    indM = mp_pandas_obj(func = _idx_matrix, 
+                      pd_obj=('molecule', events.t1), 
+                      num_threads = num_threads,
+                      dataIdx = dataIdx)
     return indM
+
+
 # =======================================================
 # Compute average uniqueness [4.4]
-def getAvgUniqueness(indM):
+def av_unique(idxM: pd.DataFrame):
+    '''
+    AFML pg 65 snippet 4.4
+    Calculates average uniqueness of sampled data and assigns uniqueness in the form weights
+    
+    params: data => pandas dataframe input based on Idx_Matrix func which calculates the uniqueness of event samples
+    '''
+    
+    if isinstance(idxM, (pd.Series, pd.DataFrame)):        
+        if idxM.isnull().values.any():
+            raise ValueError('data series contain isinf, NaNs, NaTs')
+        elif isinstance(idxM, (str, list, dict, tuple, np.ndarray, pd.Series)):
+            raise ValueError('data series contain non-float or non-integer values')
+    else:
+        raise ValueError('data input  must be pandas DataFrame, pls use Idx_Matrix provided')
     # Average uniqueness from indicator matrix
-    c=indM.sum(axis=1) # concurrency
-    u=indM.div(c,axis=0) # uniqueness
+    c=idxM.sum(axis=1) # concurrency
+    u=idxM.div(c,axis=0) # uniqueness
     avgU=u[u>0].mean() # avg. uniqueness
     return avgU
 # =======================================================
 # return sample from sequential bootstrap [4.5]
-def seqBootstrap(indM,sLength=None):
+def seq_bts(idxM: pd.DataFrame, sLength = None):
+    '''
+    AFML pg 65 snippet 4.5
+    This will make use of both av_unique and idx_matrix function to perform sequential bootstrap method.
+    The current func includes both func for ease of use.
+    
+    params: data => index matrix generated by func idx_matrix
+    params: events => t1 datetime from triple barrier method func tri_bar
+    params: sLength => if only you want to do sub sample you may wish to reduce or increase to improve on uniqueness
+    '''
+    if isinstance(idxM, (pd.Series, pd.DataFrame)):        
+        if idxM.isnull().values.any():
+            raise ValueError('data series contain isinf, NaNs, NaTs')
+        elif isinstance(idxM, (str, list, dict, tuple)):
+            raise ValueError('data series contain non-float or non-integer values')
+            
+    if sLength is not None:
+        if isinstance(sLength, (str, list, float, dict, tuple, np.ndarray, pd.Series)):
+            raise ValueError('sLength contain non-integer values')
+    
     # Generate a sample via sequential bootstrap
-    if sLength is None:sLength=indM.shape[1]
+    if sLength is None:
+        sLength=idxM.shape[1]
     phi=[]
     while len(phi)<sLength:
         avgU=pd.Series()
-        for i in indM:
-            indM_=indM[phi+[i]] # reduce indM
-            avgU.loc[i]=getAvgUniqueness(indM_).iloc[-1]
-        prob=avgU/avgU.sum() # draw prob
-        phi+=[np.random.choice(indM.columns,p=prob)]
+        for i in idxM:
+            indM_ = idxM[phi+[i]] # reduce indM
+            avgU.loc[i] = av_unique(indM_).iloc[-1]
+        prob = avgU/ avgU.sum() # draw prob
+        phi += [np.random.choice(idxM.columns, p=prob)]
     return phi
+
+'''
 # =======================================================
 # Determination of sample weight by absolute return attribution [4.10]
 def mpSampleW(t1,numCoEvents,close,molecule):
@@ -141,9 +236,9 @@ def mpSampleW(t1,numCoEvents,close,molecule):
     return wght.abs()
 
 # ============================================================
-
-
-def _apply_weight_by_return(label_endtime, num_conc_events, close_series, molecule):
+'''
+'''
+def _wgth_by_rtn(label_endtime, num_conc_events, close_series, molecule):
     """
     Snippet 4.10, page 69, Determination of Sample Weight by Absolute Return Attribution
     Derives sample weights based on concurrency and return. Works on a set of
@@ -165,7 +260,7 @@ def _apply_weight_by_return(label_endtime, num_conc_events, close_series, molecu
     return weights.abs()
 
 
-def get_weights_by_return(triple_barrier_events, close_series, num_threads=5):
+def wght_rtn(triple_barrier_events, close_series, num_threads=5):
     """
     Snippet 4.10(part 2), page 69, Determination of Sample Weight by Absolute Return Attribution
     This function is orchestrator for generating sample weights based on return using mp_pandas_obj.
@@ -184,7 +279,7 @@ def get_weights_by_return(triple_barrier_events, close_series, num_threads=5):
                                             close_series_index=close_series.index, label_endtime=triple_barrier_events['t1'])
             num_conc_events = num_conc_events.loc[~num_conc_events.index.duplicated(keep='last')]
             num_conc_events = num_conc_events.reindex(close_series.index).fillna(0)
-            weights = mp_pandas_obj(_apply_weight_by_return, ('molecule', triple_barrier_events.index), num_threads,
+            weights = mp_pandas_obj(_wgth_by_rtn, ('molecule', triple_barrier_events.index), num_threads,
                                     label_endtime=triple_barrier_events['t1'], num_conc_events=num_conc_events,
                                     close_series=close_series)
             weights *= weights.shape[0] / weights.sum()
@@ -213,7 +308,7 @@ def get_weights_by_time_decay(triple_barrier_events, close_series, num_threads=5
         try:
             # Apply piecewise-linear decay to observed uniqueness
             # Newest observation gets weight=1, oldest observation gets weight=decay
-            av_uniqueness = get_av_uniqueness_from_triple_barrier(triple_barrier_events, close_series, num_threads)
+            av_uniqueness = av_unique(triple_barrier_events, close_series, num_threads)
             decay_w = av_uniqueness['tW'].sort_index().cumsum()
             if decay >= 0:
                 slope = (1 - decay) / decay_w.iloc[-1]

@@ -1,4 +1,4 @@
 try:
-    from research.Sampling.sample_unique import *
+    from research.Sampling.sample_unique import co_events, seq_bts, idx_matrix
 except:
-    from Sampling.sample_unique import *
+    from Sampling.sample_unique import co_events, seq_bts, idx_matrix
