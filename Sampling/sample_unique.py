@@ -105,37 +105,19 @@ def co_events(data: pd.Series, events: pd.DataFrame, num_threads: int):
 # Sequential Bootstrap [4.5.2]
 ## Build Indicator Matrix [4.3]
 
-def _idx_matrix(dataIdx, molecule):
+def idx_matrix(data: pd.Series, events: pd.DataFrame):
     '''
     AFML pg 63 snippet 4.3
     Calculates the number of times events sample overlaps each other
-    
-    Slight modification that allows a close price series and idx_matrix will extract based on series's index.
-    Alternatively input close price index directly is possible.
-    
-    params: data => close price series with DatetimeIndex
-    params: t1 => pandas DataFrame generated from tri_bar func, requires datetime index 
-    
-    Attempted to include mp_pandas_obj except: datetimeindex cannot be integer
-    '''            
-    # Get Indicator matrix
-    indM_ = pd.DataFrame(0, index = dataIdx, columns=np.arange(molecule.shape[0]))
-    for i,(t0,t1) in enumerate(molecule.iteritems()):
-        indM_.loc[t0:t1,i] = 1.
-    return indM_
-
-def idx_matrix(data: pd.Series, events: pd.DataFrame, num_threads: int = 3):
-    '''
-    This is a modified code snippet using pandas obj, otherwise it would have taken 20 mins to run non-parallel
-    Pls go through the code before using it.
     
     logic is still based on initial func stated in AFML pg 63
     
     params: data => close price series with datetime index
     params: events => pandas DataFrame generated from tri_bar func
-    params: num_threads => Multiprocessing; The num of threads depends entirely on your rows. 
-                           It must be a multiple of total row count or molecule
+    
+    Attempted to include mp_pandas_obj
     '''
+    
     if isinstance(data, (pd.Series, pd.DataFrame)):        
         if data.isnull().values.any():
             raise ValueError('data series contain isinf, NaNs, NaTs')
@@ -150,21 +132,15 @@ def idx_matrix(data: pd.Series, events: pd.DataFrame, num_threads: int = 3):
     else:
         raise ValueError('events input must be pandas DataFrame with datetime Index, pls use tri_bar func provided')
         
-    if isinstance(num_threads, (str, list, dict, tuple, pd.Series, pd.DataFrame)):
-        raise ValueError('num_threads must be positive integer or float')
-        
-    for i in range(24, -1, -1): # experimental
-        if events.t1.shape[0] % i == 0:
-            num_threads = int(i)
-            break
-    
     data = data.dropna() #create new index based on t1 events
     dataIdx = data[events.index.min(): events.t1.max()].index
-    indM = mp_pandas_obj(func = _idx_matrix, 
-                      pd_obj=('molecule', events.t1), 
-                      num_threads = num_threads,
-                      dataIdx = dataIdx)
-    return indM
+
+    indM_ = pd.DataFrame(0, index = dataIdx, columns=np.arange(events.t1.shape[0]))
+    for i,(t0,t1) in enumerate(events.t1.iteritems()):
+        indM_.loc[t0:t1,i] = 1.
+    
+    idxM = indM_[indM_.sum(axis = 1) != 0]
+    return idxM
 
 
 # =======================================================
