@@ -327,58 +327,48 @@ def mpSampleW(t1,numCoEvents,close,molecule):
 
 # ============================================================
 '''
-'''
-def _wgth_by_rtn(label_endtime, num_conc_events, close_series, molecule):
-    """
-    Snippet 4.10, page 69, Determination of Sample Weight by Absolute Return Attribution
-    Derives sample weights based on concurrency and return. Works on a set of
-    datetime index values (molecule). This allows the program to parallelize the processing.
 
-    :param label_endtime: (pd.Series) Label endtime series (t1 for triple barrier events)
-    :param num_conc_events: (pd.Series) number of concurrent labels (output from num_concurrent_events function).
-    :param close_series: (pd.Series) close prices
-    :param molecule: (an array) a set of datetime index values for processing.
-    :return: (pd.Series) of sample weights based on number return and concurrency for molecule
-    """
+def _wgth_by_rtn(data: pd.DataFrame, events: pd.Series, num_co_events: pd.DateFrame, molecule):
+    ret = np.log(data).diff()  # Log-returns, so that they are additive
+    wghts = pd.Series(index=molecule)
 
-    ret = np.log(close_series).diff()  # Log-returns, so that they are additive
-    weights = pd.Series(index=molecule)
-
-    for t_in, t_out in label_endtime.loc[weights.index].iteritems():
+    for t_in, t_out in events.loc[wghts.index].iteritems():
         # Weights depend on returns and label concurrency
-        weights.loc[t_in] = (ret.loc[t_in:t_out] / num_conc_events.loc[t_in:t_out]).sum()
-    return weights.abs()
+        wghts.loc[t_in] = (ret.loc[t_in:t_out] / num_co_events.loc[t_in:t_out]).sum()
+    return wghts.abs()
 
 
-def wght_rtn(triple_barrier_events, close_series, num_threads=5):
+def wght_rtn(data: pd.DataFrame, events: pd.DataFrame, num_threads: int = 5):
     """
-    Snippet 4.10(part 2), page 69, Determination of Sample Weight by Absolute Return Attribution
+    AFML page 69 snippet 4.10 
+    Determination of Sample Weight by Absolute Return Attribution
     This function is orchestrator for generating sample weights based on return using mp_pandas_obj.
 
-    :param triple_barrier_events: (data frame) of events from labeling.get_events()
-    :param close_series: (pd.Series) close prices
-    :param num_threads: (int) the number of threads concurrently used by the function.
-    :return: (pd.Series) of sample weights based on number return and concurrency
+    param: data => close price series 
+    param: events =>  pandas DataFrame using tri_bar func
+    param num_threads: (int) the number of threads concurrently used by the function.
     """
 
-    null_events = bool(triple_barrier_events.isnull().values.any())
-    null_index = bool(triple_barrier_events.index.isnull().any())
-    if null_events is False and null_index is False:
-        try:
-            num_conc_events = mp_pandas_obj(num_concurrent_events, ('molecule', triple_barrier_events.index), num_threads,
-                                            close_series_index=close_series.index, label_endtime=triple_barrier_events['t1'])
-            num_conc_events = num_conc_events.loc[~num_conc_events.index.duplicated(keep='last')]
-            num_conc_events = num_conc_events.reindex(close_series.index).fillna(0)
-            weights = mp_pandas_obj(_wgth_by_rtn, ('molecule', triple_barrier_events.index), num_threads,
-                                    label_endtime=triple_barrier_events['t1'], num_conc_events=num_conc_events,
-                                    close_series=close_series)
-            weights *= weights.shape[0] / weights.sum()
-            return weights
-        except:
-            p('NaN values in triple_barrier_events, delete NaNs')
+    num_co_events = mp_pandas_obj(_num_co_events, 
+                                 ('molecule', events.index), 
+                                  num_threads,
+                                  dataIndex=data.index, 
+                                  events=events['t1'])
+    num_co_events = num_co_events.loc[~num_co_events.index.duplicated(keep='last')]
+    num_co_events = num_co_events.reindex(data.index).fillna(0)
+    wghts = mp_pandas_obj(_wgth_by_rtn, 
+                          ('molecule', events.index),
+                          num_threads = num_threads,
+                          events=events['t1'], 
+                          num_co_events=num_co_events,
+                          data=data)
+    
+    wghts *= wghts.shape[0] / wghts.sum()
+    return wghts
 
+'''
 
-def get_weights_by_time_decay(triple_barrier_events, close_series, num_threads=5, decay=1):
+def wght_time(triple_barrier_events, close_series, num_threads=5, decay=1):
     """
     Snippet 4.11, page 70, Implementation of Time Decay Factors
 
