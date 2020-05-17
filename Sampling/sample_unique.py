@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import datetime
 import warnings
 
 from research.Util.multiprocess import mp_pandas_obj, process_jobs_, process_jobs
@@ -426,5 +425,5 @@ def wght_by_td(data: pd.Series, events: pd.DataFrame, num_threads: int = 1, td: 
         slope = 1 / ((td + 1) * wghts.iloc[-1])
     const = 1 - slope * wghts.iloc[-1]
     wghts = const + slope * wghts
-    wghts[wghts < 0] = 0  # Weights can't be negative
+    wghts[wghts < 0] = 0  # clear neg weights
     return wghts
