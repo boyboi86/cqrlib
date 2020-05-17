@@ -300,6 +300,7 @@ def MT_MC(num_obs: int = 10, num_bars: int = 100, max_H: int = 5, numIters: int 
     Still trying to fix
     '''
     warnings.warn('This func does not fit into other aglos, do not use it!')
+    
     jobs = []
     for i in np.arange(int(numIters)):
         job = {'func': auxMC, 
@@ -338,7 +339,7 @@ def _wgth_by_rtn(data: pd.DataFrame, events: pd.Series, num_co_events: pd.DataFr
     return wghts.abs()
 
 
-def wght_by_rtn(data: pd.DataFrame, events: pd.DataFrame, num_threads: int = 5):
+def wght_by_rtn(data: pd.DataFrame, events: pd.DataFrame, num_threads: int = 1):
     '''
     AFML page 69 snippet 4.10 
     weights based on abs returns.
@@ -346,8 +347,20 @@ def wght_by_rtn(data: pd.DataFrame, events: pd.DataFrame, num_threads: int = 5):
 
     param: data => close price series 
     param: events =>  pandas DataFrame using tri_bar func
-    param num_threads: (int) the number of threads concurrently used by the function.
+    param num:_threads => the number of threads concurrently used by the function, depends on len(molecule)
     '''
+    if isinstance(data, (str, list, float, dict, tuple, np.ndarray)):
+        raise ValueError('idxM input must be pandas Series or DataFrame with single column i.e. close prce series')
+    elif data.isnull().values.any():
+        raise ValueError('idxM input contains NaNs, np.isinf')
+            
+    if isinstance(events, (str, list, float, dict, tuple, np.ndarray, pd.Series)):
+        raise ValueError('events input must be pandas  DataFrame, pls use tri_bar func provided')
+    elif events.isnull().values.any():
+        raise ValueError('events input contains NaNs, np.isinf')
+        
+    if isinstance(num_threads, (str, float, list, float, dict, tuple, np.ndarray, pd.Series)):
+        raise ValueError('events input must be positive non-zero integer i.e. 1, 2')
 
     num_co_events = mp_pandas_obj(_num_co_events, 
                                  ('molecule', events.index), 
@@ -367,22 +380,44 @@ def wght_by_rtn(data: pd.DataFrame, events: pd.DataFrame, num_threads: int = 5):
     return wghts
 
 
-def wght_by_td(data: pd.Series, events: pd.DataFrame, num_threads: int = 5, td: float = 1.):
+def wght_by_td(data: pd.Series, events: pd.DataFrame, num_threads: int = 1, td: float = 1.):
     '''
     AFML page 70 Snippet 4.11
     
     weights based on time decay.
     As time passes, older samples will suffer larger discount on their "relevance".
 
-    param: data: (pd.Series) close prices
-    param: events: pandas DataFrame from tri_bar func
-    param: num_threads: (int) the number of threads concurrently used by the function.
+    param: data => close prices series
+    param: events => pandas DataFrame from tri_bar func
+    param: num_threads => the number of threads concurrently used by the function, depends on len(molecule)
     param: td => decay factor
         - decay = 1 means there is no time decay
         - 0 < decay < 1 means that weights decay linearly over time, but every observation still receives a strictly positive weight, regadless of how old
         - decay = 0 means that weights converge linearly to zero, as they become older
         - decay < 0 means that the oldes portion c of the observations receive zero weight (i.e they are erased from memory)
     '''
+    if isinstance(data, (str, list, float, dict, tuple, np.ndarray)):
+        raise ValueError('idxM input must be pandas Series or DataFrame with single column i.e. close prce series')
+    elif data.isnull().values.any():
+        raise ValueError('idxM input contains NaNs, np.isinf')
+            
+    if isinstance(events, (str, list, float, dict, tuple, np.ndarray, pd.Series)):
+        raise ValueError('events input must be pandas  DataFrame, pls use tri_bar func provided')
+    elif events.isnull().values.any():
+        raise ValueError('events input contains NaNs, np.isinf')
+        
+    if isinstance(num_threads, (str, float, list, float, dict, tuple, np.ndarray, pd.Series)):
+        raise ValueError('events input must be positive non-zero integer i.e. 1, 2')
+        
+    if isinstance(td, (str, list, float, dict, tuple, np.ndarray, pd.Series)):
+        raise ValueError('events input must be positive non-zero float i.e. 0.8, 1.0')
+    if isinstance(td, (float, int)) and td < 0:
+        raise ValueError('events input must be positive non-zero value i.e. 0.8, 1.0')
+    if isinstance(td, (float, int)) and td > 1:
+        raise ValueError('events input must be within range(0,1) i.e. 0.8, 1.0')
+    if isinstance(td, (int)) and td >= 0:
+        td = float(td)
+        
     av_un = co_events(data = data, events = events, num_threads = num_threads)
     wghts = av_un['tW'].sort_index().cumsum()
     if td >= 0:
