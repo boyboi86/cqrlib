@@ -1,8 +1,9 @@
 import pandas as pd
 import numpy as np
 import datetime
+import warnings
 
-from research.Util.multiprocess import mp_pandas_obj
+from research.Util.multiprocess import mp_pandas_obj, process_jobs_, process_jobs
 
 p = print
 
@@ -105,10 +106,72 @@ def co_events(data: pd.Series, events: pd.DataFrame, num_threads: int):
 # Sequential Bootstrap [4.5.2]
 ## Build Indicator Matrix [4.3]
 
-def idx_matrix(data: pd.Series, events: pd.DataFrame):
+def _idx_matrix(data: pd.DataFrame, molecule):
     '''
     AFML pg 63 snippet 4.3
     Calculates the number of times events sample overlaps each other
+    
+    logic is still based on initial func stated in AFML pg 63
+    
+    params: data => close price series with datetime index
+    params: events => pandas DataFrame generated from tri_bar func
+    
+    Attempted to include mp_pandas_obj
+    '''
+    event_ = data[molecule.index.min(): molecule.max()].index
+    
+    indM_ = pd.DataFrame(0., index = event_, columns= np.arange(molecule.shape[0]))
+    for i,(t0,t1) in enumerate(molecule.iteritems()):
+        indM_.loc[t0:t1,i] = 1.
+    
+    return indM_
+
+def idx_matrix(data: pd.Series, events: pd.DataFrame, num_threads=1):
+    '''
+    AFML pg 63 snippet 4.3
+    Calculates the number of times events sample overlaps each other
+    
+    logic is still based on initial func stated in AFML pg 63
+    
+    params: data => close price series with datetime index
+    params: events => pandas DataFrame generated from tri_bar func
+    
+    Attempted to include mp_pandas_obj, only use 1 as num_threads. Still trying to debug for more threads.
+    '''
+    
+    if isinstance(data, (pd.Series, pd.DataFrame)):        
+        if data.isnull().values.any():
+            raise ValueError('data series contain isinf, NaNs, NaTs')
+        elif isinstance(data, (str, list, dict, tuple, np.ndarray, pd.Series)):
+            raise ValueError('data series contain non-float or non-integer values')
+    else:
+        raise ValueError('data input  must be pandas Series with datetime Index')
+        
+    if isinstance(events, (pd.Series, pd.DataFrame)):        
+        if isinstance(events.t1, (str, list, dict, tuple, np.ndarray)):
+            raise ValueError('events.t1 value must be date time')
+    else:
+        raise ValueError('events input must be pandas DataFrame with datetime Index, pls use tri_bar func provided')
+        
+    data.dropna(inplace=True) #create new index based on t1 events
+    #dataIdx = data[events.index.min(): events.t1.max()].index # we only need full dates from events
+    #indM_ = pd.DataFrame(0, index = dataIdx, columns=np.arange(events.t1.shape[0])).copy()
+    indM = mp_pandas_obj(func = _idx_matrix, 
+                              pd_obj = ('molecule', events.t1),
+                              num_threads = num_threads,
+                              axis = 1, # we are multiprocess based on columns so we need to flip over the axis
+                              #indM_ = indM_,
+                              data = data)
+    
+    idxM = indM[indM.sum(axis = 1) != 0]
+    return idxM
+
+
+def old_idx_matrix(data: pd.Series, events: pd.DataFrame):
+    '''
+    AFML pg 63 snippet 4.3
+    Calculates the number of times events sample overlaps each other
+    Some simple moification included
     
     logic is still based on initial func stated in AFML pg 63
     
@@ -132,9 +195,10 @@ def idx_matrix(data: pd.Series, events: pd.DataFrame):
     else:
         raise ValueError('events input must be pandas DataFrame with datetime Index, pls use tri_bar func provided')
         
+    warnings.warn("This func is single thread, kindly use the multiprocess version func provided i.e. idx_matrix")
+    
     data = data.dropna() #create new index based on t1 events
-    dataIdx = data[events.index.min(): events.t1.max()].index
-
+    dataIdx = data[events.index.min(): events.t1.max()].index # we only need full dates from events
     indM_ = pd.DataFrame(0, index = dataIdx, columns=np.arange(events.t1.shape[0]))
     for i,(t0,t1) in enumerate(events.t1.iteritems()):
         indM_.loc[t0:t1,i] = 1.
@@ -152,53 +216,103 @@ def av_unique(idxM: pd.DataFrame):
     
     params: data => pandas dataframe input based on Idx_Matrix func which calculates the uniqueness of event samples
     '''
-    
-    if isinstance(idxM, (pd.Series, pd.DataFrame)):        
-        if idxM.isnull().values.any():
-            raise ValueError('data series contain isinf, NaNs, NaTs')
-        elif isinstance(idxM, (str, list, dict, tuple, np.ndarray, pd.Series)):
-            raise ValueError('data series contain non-float or non-integer values')
-    else:
-        raise ValueError('data input  must be pandas DataFrame, pls use Idx_Matrix provided')
     # Average uniqueness from indicator matrix
-    c=idxM.sum(axis=1) # concurrency
-    u=idxM.div(c,axis=0) # uniqueness
+    idx_sum = idxM.sum(axis = 1) # concurrency
+    u=idxM.div(idx_sum, axis = 0) # uniqueness
     avgU=u[u>0].mean() # avg. uniqueness
     return avgU
 # =======================================================
 # return sample from sequential bootstrap [4.5]
-def seq_bts(idxM: pd.DataFrame, sLength = None):
+def seq_bts(idxM: pd.DataFrame, sample_len = None):
     '''
     AFML pg 65 snippet 4.5
     This will make use of both av_unique and idx_matrix function to perform sequential bootstrap method.
     The current func includes both func for ease of use.
     
+    
     params: data => index matrix generated by func idx_matrix
     params: events => t1 datetime from triple barrier method func tri_bar
-    params: sLength => if only you want to do sub sample you may wish to reduce or increase to improve on uniqueness
+    params: sample_len => if only you want to do sub sample you may wish to reduce or increase to improve on uniqueness
     '''
-    if isinstance(idxM, (pd.Series, pd.DataFrame)):        
-        if idxM.isnull().values.any():
-            raise ValueError('data series contain isinf, NaNs, NaTs')
-        elif isinstance(idxM, (str, list, dict, tuple)):
-            raise ValueError('data series contain non-float or non-integer values')
+    
+
+    if isinstance(idxM, (str, list, float, dict, tuple, np.ndarray, pd.Series)):
+        raise ValueError('idxM value must be pandas DataFrame, pls use idx_matrix func provided')
+    elif idxM.isnull().values.any():
+        raise ValueError('idxM value contains NaNs, np.isinf')
             
-    if sLength is not None:
-        if isinstance(sLength, (str, list, float, dict, tuple, np.ndarray, pd.Series)):
-            raise ValueError('sLength contain non-integer values')
+    if sample_len is not None:
+        if isinstance(sample_len, (str, list, float, dict, tuple, np.ndarray, pd.Series)):
+            raise ValueError('sLength must be positive non-decimal integer value i.e. 12, 30')
+        if sample_len > idxM.shape[1]:
+            warnings.warn('sample length exceeds index matrix column, may exceed expected waiting time.')
+
     
     # Generate a sample via sequential bootstrap
-    if sLength is None:
-        sLength=idxM.shape[1]
+    if sample_len is None:
+        sample_len=idxM.shape[1]
     phi=[]
-    while len(phi)<sLength:
-        avgU=pd.Series()
+    
+    while len(phi) < sample_len:
+        avgU=pd.Series(0., dtype=float)
+    
         for i in idxM:
-            indM_ = idxM[phi+[i]] # reduce indM
-            avgU.loc[i] = av_unique(indM_).iloc[-1]
+            indM_ = idxM[phi + [i]] # reduce indM
+            avgU.loc[i] = av_unique(indM_).iloc[-1] #get the last value, if it is very unique it's value will be high
         prob = avgU/ avgU.sum() # draw prob
-        phi += [np.random.choice(idxM.columns, p=prob)]
+        p(prob[0])
+        phi.append(np.random.choice(idxM.columns, p=prob))
     return phi
+
+#===================================================
+    
+
+def rnd_t1(num_obs: int, num_bars: int, max_H: int):
+    t1 = pd.Series()
+    for i in np.arange(num_obs):
+        ix = np.random.randint(0, num_bars)
+        val = ix + np.random.randint(1, max_H)
+        t1.loc[ix] = val
+    return t1.sort_index()
+
+def auxMC(num_obs: int, num_bars: int, max_H: int):
+    t1 = rnd_t1(num_obs, num_bars, max_H)
+    bar = range(t1.max() + 1)
+    indM = idx_matrix(data = bar, events = t1, num_threads = 1)
+    phi = np.random.choice(indM.columns, size=indM.shape[1])
+    stdU = av_unique(indM[phi]).mean()
+    phi = seq_bts(indM)
+    seqU = av_unique(indM[phi]).mean()
+    return {'stdU':stdU, 'seqU':seqU}
+
+def MT_MC(num_obs: int = 10, num_bars: int = 100, max_H: int = 5, numIters: int = 1e6, num_threads: int = 24):
+    '''
+    AFML pg 66 - 68 snippet 4.9
+    This is the monte carlo experiment using multiprocessing.
+    the idea is to generate a series of random numbers, the logic is same as monte carlos using nested loops
+    to generate different paths.
+    
+    params: num_obs => number of observations
+    params: num_bars => number of bars which is also used to mimic std() of path in regular monte carlos
+    params: max_H => maximum number for path
+    params: num_Iters => number of loops by default 100,000
+    params: num_threads => multiprocessing used for cores, processes.
+    '''
+    jobs = []
+    for i in np.arange(int(numIters)):
+        job = {'func': auxMC, 
+               'num_obs': num_obs, 
+               'num_bars': num_bars, 
+               'max_H': max_H, 
+               'numIters': numIters, 
+               'num_threads': num_threads}
+        jobs.append(job)
+    if num_threads == 1:
+        out = process_jobs_(jobs)
+    else:
+        out = process_jobs(jobs, num_threads = num_threads)
+    print(pd.DataFrame(out).describe())
+    return pd.DataFrame(out)
 
 '''
 # =======================================================
