@@ -292,9 +292,9 @@ def MT_MC(num_obs: int = 10, num_bars: int = 100, max_H: int = 5, numIters: int 
     the idea is to generate a series of random numbers, the logic is same as monte carlos using nested loops
     to generate different paths.
     
-    params: num_obs => number of observations
-    params: num_bars => number of bars which is also used to mimic std() of path in regular monte carlos
-    params: max_H => maximum number for path
+    params: num_obs => number of observations similar to number of path
+    params: num_bars => number of bars which is also used to mimic timesteps
+    params: max_H => maximum number for change in value simialr to standard deviation
     params: num_Iters => number of loops by default 100,000
     params: num_threads => multiprocessing used for cores, processes.
     '''
