@@ -108,16 +108,13 @@ def co_events(data: pd.Series, events: pd.DataFrame, num_threads: int):
 
 def _idx_matrix(data: pd.DataFrame, molecule):
     '''
-    AFML pg 63 snippet 4.3
-    Calculates the number of times events sample overlaps each other
+    this func is permenantly in debug mode.
+    otherwise, code will not run. mp_pandas_obj does not allow int as index. Hence transpose not possible.
     
-    logic is still based on initial func stated in AFML pg 63
-    
-    params: data => close price series with datetime index
-    params: events => pandas DataFrame generated from tri_bar func
-    
-    Attempted to include mp_pandas_obj
+    params: molecule => events.t1 refer to idx_matrix func
+    params: data => close price series
     '''
+
     event_ = data[molecule.index.min(): molecule.max()].index
     
     indM_ = pd.DataFrame(0., index = event_, columns= np.arange(molecule.shape[0]))
@@ -126,7 +123,7 @@ def _idx_matrix(data: pd.DataFrame, molecule):
     
     return indM_
 
-def idx_matrix(data: pd.Series, events: pd.DataFrame, num_threads=1):
+def idx_matrix(data: pd.Series, events: pd.DataFrame):
     '''
     AFML pg 63 snippet 4.3
     Calculates the number of times events sample overlaps each other
@@ -144,13 +141,15 @@ def idx_matrix(data: pd.Series, events: pd.DataFrame, num_threads=1):
             raise ValueError('data series contain isinf, NaNs, NaTs')
         elif isinstance(data, (str, list, dict, tuple, np.ndarray, pd.Series)):
             raise ValueError('data series contain non-float or non-integer values')
-    else:
+            
+    if isinstance(data, (str, int, float, list, dict, tuple, np.ndarray)):
         raise ValueError('data input  must be pandas Series with datetime Index')
         
     if isinstance(events, (pd.Series, pd.DataFrame)):        
         if isinstance(events.t1, (str, list, dict, tuple, np.ndarray)):
             raise ValueError('events.t1 value must be date time')
-    else:
+            
+    if isinstance(events, (str, int, float, list, dict, tuple, np.ndarray)):
         raise ValueError('events input must be pandas DataFrame with datetime Index, pls use tri_bar func provided')
         
     data.dropna(inplace=True) #create new index based on t1 events
@@ -158,7 +157,7 @@ def idx_matrix(data: pd.Series, events: pd.DataFrame, num_threads=1):
     #indM_ = pd.DataFrame(0, index = dataIdx, columns=np.arange(events.t1.shape[0])).copy()
     indM = mp_pandas_obj(func = _idx_matrix, 
                               pd_obj = ('molecule', events.t1),
-                              num_threads = num_threads,
+                              num_threads = 1,
                               axis = 1, # we are multiprocess based on columns so we need to flip over the axis
                               #indM_ = indM_,
                               data = data)
@@ -278,7 +277,7 @@ def rnd_t1(num_obs: int, num_bars: int, max_H: int):
 def auxMC(num_obs: int, num_bars: int, max_H: int):
     t1 = rnd_t1(num_obs, num_bars, max_H)
     bar = range(t1.max() + 1)
-    indM = idx_matrix(data = bar, events = t1, num_threads = 1)
+    indM = idx_matrix(data = bar, events = t1, num_threads = 1) #need to change to fit current algo
     phi = np.random.choice(indM.columns, size=indM.shape[1])
     stdU = av_unique(indM[phi]).mean()
     phi = seq_bts(indM)
@@ -297,15 +296,16 @@ def MT_MC(num_obs: int = 10, num_bars: int = 100, max_H: int = 5, numIters: int 
     params: max_H => maximum number for change in value simialr to standard deviation
     params: num_Iters => number of loops by default 100,000
     params: num_threads => multiprocessing used for cores, processes.
+    
+    Still trying to fix
     '''
+    warnings.warn('This func does not fit into other aglos, do not use it!')
     jobs = []
     for i in np.arange(int(numIters)):
         job = {'func': auxMC, 
                'num_obs': num_obs, 
                'num_bars': num_bars, 
-               'max_H': max_H, 
-               'numIters': numIters, 
-               'num_threads': num_threads}
+               'max_H': max_H}
         jobs.append(job)
     if num_threads == 1:
         out = process_jobs_(jobs)
@@ -328,26 +328,26 @@ def mpSampleW(t1,numCoEvents,close,molecule):
 # ============================================================
 '''
 
-def _wgth_by_rtn(data: pd.DataFrame, events: pd.Series, num_co_events: pd.DateFrame, molecule):
-    ret = np.log(data).diff()  # Log-returns, so that they are additive
+def _wgth_by_rtn(data: pd.DataFrame, events: pd.Series, num_co_events: pd.DataFrame, molecule):
+    rtn = np.log(data).diff()  # Log-returns, so that they are additive
     wghts = pd.Series(index=molecule)
 
-    for t_in, t_out in events.loc[wghts.index].iteritems():
+    for tIn, tOut in events.loc[wghts.index].iteritems():
         # Weights depend on returns and label concurrency
-        wghts.loc[t_in] = (ret.loc[t_in:t_out] / num_co_events.loc[t_in:t_out]).sum()
+        wghts.loc[tIn] = (rtn.loc[tIn:tOut] / num_co_events.loc[tIn:tOut]).sum()
     return wghts.abs()
 
 
-def wght_rtn(data: pd.DataFrame, events: pd.DataFrame, num_threads: int = 5):
-    """
+def wght_by_rtn(data: pd.DataFrame, events: pd.DataFrame, num_threads: int = 5):
+    '''
     AFML page 69 snippet 4.10 
-    Determination of Sample Weight by Absolute Return Attribution
-    This function is orchestrator for generating sample weights based on return using mp_pandas_obj.
+    weights based on abs returns.
+    Those with higher abs return should be given more weights
 
     param: data => close price series 
     param: events =>  pandas DataFrame using tri_bar func
     param num_threads: (int) the number of threads concurrently used by the function.
-    """
+    '''
 
     num_co_events = mp_pandas_obj(_num_co_events, 
                                  ('molecule', events.index), 
@@ -359,45 +359,37 @@ def wght_rtn(data: pd.DataFrame, events: pd.DataFrame, num_threads: int = 5):
     wghts = mp_pandas_obj(_wgth_by_rtn, 
                           ('molecule', events.index),
                           num_threads = num_threads,
-                          events=events['t1'], 
-                          num_co_events=num_co_events,
-                          data=data)
+                          events = events['t1'], 
+                          num_co_events = num_co_events,
+                          data = data)
     
     wghts *= wghts.shape[0] / wghts.sum()
     return wghts
 
-'''
 
-def wght_time(triple_barrier_events, close_series, num_threads=5, decay=1):
-    """
-    Snippet 4.11, page 70, Implementation of Time Decay Factors
+def wght_by_td(data: pd.Series, events: pd.DataFrame, num_threads: int = 5, td: float = 1.):
+    '''
+    AFML page 70 Snippet 4.11
+    
+    weights based on time decay.
+    As time passes, older samples will suffer larger discount on their "relevance".
 
-    :param triple_barrier_events: (data frame) of events from labeling.get_events()
-    :param close_series: (pd.Series) close prices
-    :param num_threads: (int) the number of threads concurrently used by the function.
-    :param decay: (int) decay factor
+    param: data: (pd.Series) close prices
+    param: events: pandas DataFrame from tri_bar func
+    param: num_threads: (int) the number of threads concurrently used by the function.
+    param: td => decay factor
         - decay = 1 means there is no time decay
         - 0 < decay < 1 means that weights decay linearly over time, but every observation still receives a strictly positive weight, regadless of how old
         - decay = 0 means that weights converge linearly to zero, as they become older
         - decay < 0 means that the oldes portion c of the observations receive zero weight (i.e they are erased from memory)
-    :return: (pd.Series) of sample weights based on time decay factors
-    """
-    null_events = bool(triple_barrier_events.isnull().values.any())
-    null_index = bool(triple_barrier_events.index.isnull().any())
-    if null_events is False and null_index is False:
-        try:
-            # Apply piecewise-linear decay to observed uniqueness
-            # Newest observation gets weight=1, oldest observation gets weight=decay
-            av_uniqueness = av_unique(triple_barrier_events, close_series, num_threads)
-            decay_w = av_uniqueness['tW'].sort_index().cumsum()
-            if decay >= 0:
-                slope = (1 - decay) / decay_w.iloc[-1]
-            else:
-                slope = 1 / ((decay + 1) * decay_w.iloc[-1])
-            const = 1 - slope * decay_w.iloc[-1]
-            decay_w = const + slope * decay_w
-            decay_w[decay_w < 0] = 0  # Weights can't be negative
-            return decay_w
-        else:
-            p('NaN values in triple_barrier_events, delete NaNs')
-'''
+    '''
+    av_un = co_events(data = data, events = events, num_threads = num_threads)
+    wghts = av_un['tW'].sort_index().cumsum()
+    if td >= 0:
+        slope = (1 - td) / wghts.iloc[-1]
+    else:
+        slope = 1 / ((td + 1) * wghts.iloc[-1])
+    const = 1 - slope * wghts.iloc[-1]
+    wghts = const + slope * wghts
+    wghts[wghts < 0] = 0  # Weights can't be negative
+    return wghts
