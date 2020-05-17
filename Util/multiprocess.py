@@ -5,7 +5,8 @@ import datetime as dt
 from multiprocessing import Pool
 import types
 
-p_ver = print('Python', sys.version)
+p = print
+p_ver = p('Python', sys.version)
 
 try: 
     import copy_reg
@@ -33,6 +34,28 @@ def _unpickle_method(func_name, obj, cls):
     return func.__get__(obj,cls)
 
 copy_reg.pickle(types.MethodType, _pickle_method, _unpickle_method)
+
+def opt_num_threads(Idx: pd.DataFrame.index, num_threads: int, mp_batches: int):
+    '''
+    experimental
+    only for idx_matrix if error try using num_threads = 1, mp_batches = 1
+    basically this func is to reduce work load by breaking down certain work.
+    
+    it is dependent on the molecule total count, and splitting atom.
+    
+    params: rowIdx => return pandas.DataFrame rows
+    params: num_Threads => minimal num of threads for multiprocessing
+    '''
+    opt_num_thread = [0, 0]
+    for i in np.arange(24, 0, -1): # experimental
+        if opt_num_thread[0] == 0 and Idx.shape[0] % i == 0:
+            opt_num_thread[0] = i
+        if opt_num_thread[1] == 0 and Idx.shape[0] % i == 1:
+            opt_num_thread[1] = i
+    _max_num_threads = max(num_threads, max(opt_num_thread[0], opt_num_thread[1]))
+    _num_processes = max(mp_batches, min(opt_num_thread[0], opt_num_thread[1]))
+    p(_max_num_threads, _num_processes)
+    return _max_num_threads, _num_processes
 
 # Snippet 20.5 (page 306), the lin_parts function
 def lin_parts(num_atoms, num_threads):
@@ -85,9 +108,9 @@ def nested_parts(num_atoms, num_threads, upper_triangle=False):
 
 
 # Snippet 20.7 (page 310), The mpPandasObj, used at various points in the book
-def mp_pandas_obj(func, pd_obj, num_threads=24, mp_batches=1, lin_mols=True, **kargs):
+def mp_pandas_obj(func, pd_obj, num_threads=24, mp_batches=1, lin_mols=True, axis=0, **kargs):
     """
-    Advances in Financial Machine Learning, Snippet 20.7, page 310.
+    AFML, Snippet 20.7, page 310.
     The mpPandasObj, used at various points in the book
     Parallelize jobs, return a dataframe or series.
     Example: df1=mp_pandas_obj(func,('molecule',df0.index),24,**kwds)
@@ -116,6 +139,8 @@ def mp_pandas_obj(func, pd_obj, num_threads=24, mp_batches=1, lin_mols=True, **k
     :param lin_mols: (bool) Tells if the method should use linear or nested partitioning
     :param kargs: (var args) Keyword arguments needed by func
     :return: (pd.DataFrame) of results
+    
+    Pls note, slight modification to this snippet for optimised result
     """
 
     if lin_mols:
@@ -142,7 +167,7 @@ def mp_pandas_obj(func, pd_obj, num_threads=24, mp_batches=1, lin_mols=True, **k
         return out
 
     for i in out: df0 = df0.append(i)
-    df0 = df0.sort_index()
+    df0 = df0.sort_index(axis=axis) #experimental
     return df0
 
 
