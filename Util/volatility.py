@@ -36,7 +36,10 @@ def vol(data: pd.Series, span0: int = 100, period: str = 'days', num_period: int
     df0=df0.ewm(span = span0).std()
     return df0
 
-def parksinson_vol(high: pd.Series, low: pd.Series, window: int = 20):
+def pks_vol(high: pd.Series, low: pd.Series, window: int = 20):
+    '''
+    Parksinson volatility
+    '''
     
     if isinstance(high, (str, int, float)):
         raise ValueError("high data must be pandas series, 1d array with datetimeIndex i.e close price series")
@@ -59,7 +62,10 @@ def parksinson_vol(high: pd.Series, low: pd.Series, window: int = 20):
     return np.sqrt(estimator.rolling(window=window).mean())
 
 
-def garman_class_vol(open_price: pd.Series, high: pd.Series, low: pd.Series, close_price: pd.Series, window: int = 20):
+def gc_vol(open_price: pd.Series, high: pd.Series, low: pd.Series, close_price: pd.Series, window: int = 20):
+    '''
+    garman class volatility
+    '''
     
     if isinstance(open_price, (str, int, float)):
         raise ValueError("low data must be pandas series, 1d array with datetimeIndex i.e close price series")
@@ -98,8 +104,11 @@ def garman_class_vol(open_price: pd.Series, high: pd.Series, low: pd.Series, clo
     return df0['estimate'].apply(np.sqrt)
 
 
-def yang_zhang_vol(open: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series,
-                       window: int = 20):
+def yz_vol(open: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series,window: int = 20):
+    
+    '''
+    yang zhang volatility
+    '''
     k = 0.34 / (1.34 + (window + 1) / (window - 1))
 
     open_prev_close_ret = np.log(open / close.shift(1))
