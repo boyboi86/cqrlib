@@ -1,13 +1,11 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Apr  5 12:54:18 2020
-
-@author: Wei_X
-"""
-
 import numpy as np
+import pandas as pd
 import scipy.stats as si
+
 from arch.unitroot import ADF, KPSS
+
+import statsmodels.stats.diagnostic as sm
+import statsmodels.api as smi
 
 p = print
 
@@ -79,26 +77,44 @@ def normality_test(series_input, test_limit = 0.05):
 # If it is not single model, it could be used for goodness of fit comparison
 #==============================================================================
 
-def unit_test(series_input):
-    adf = ADF(series_input)
-    kpss = KPSS(series_input)
-    adf.trend = 'ct'
+def unit_test(data: pd.Series):
+    adf = ADF(data)
+    kpss = KPSS(data)
+    adf.trend = 'c'
     kpss.trend = 'ct'
     if (adf.pvalue <= 0.05 and kpss.pvalue >= 0.05):
-        p("=" * 33)
         p("\nADF & KPSS: Strong evidence process is stationary\n")
-        p("=" * 33)
     elif adf.pvalue <= 0.05:
-        p("=" * 33)
         p(adf.summary())
         p('\nReject Null hypothesis: Process is stationary\n')
-        p("=" * 33)
     elif kpss.pvalue >= 0.05:
         p("=" * 33)
         p(kpss.summary())
         p('\nFail to reject Null hypothesis: Process is stationary\n')
-        p("=" * 33)
     else:
-        p("=" * 33)
         p('\nProcess has unit root therefore not stationary\n')
-        p("=" * 33)
+
+def white_test(data: pd.DataFrame):
+    '''
+    params: data => close price series
+    White test is meant to test if series is homoscedastic or heteroscedastic
+    null hypothsis: homoscedastic (> 0.05)
+    alt hypothsis: heteroscedastic
+    
+    If homoscedastic would meant series have constant dispersion, ststistically good for mean reverting.
+    Test uses OLS non-log. So do take note when using it.
+    '''
+    data['std1'] = data['close'].std()
+    p("Residual: {0}\nExog count: {1}".format(data['std1'][0], data['close'].count()))
+    data.dropna(inplace= True)
+    X = smi.tools.tools.add_constant(data['close'])
+    results = smi.regression.linear_model.OLS(data['std1'], X).fit()
+    resid = results.resid
+    exog = results.model.exog
+    p("White-Test p-Value: {0}".format(sm.het_white(resid, exog)[1]))
+    if sm.het_white(resid, exog)[1] > 0.05:
+        p("White test outcome at 5% signficance: homoscedastic")
+        p("Reject null hypothesis at critical size: 0.05")
+    else:
+        p("White test outcome at 5% signficance: heteroscedastic")
+    return data.drop(columns = ['std1'])
