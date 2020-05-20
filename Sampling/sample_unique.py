@@ -1,3 +1,18 @@
+'''
+Take note:
+Everything here as much as possible is based on Pandas and multiprocessing for parallelisation.
+
+In part, I want to keep the code as "pandas" as possible.
+As well as a way to force myself to only rely on multiprocessing to perform parallel computering.
+Try to see it as a challenge.
+
+However, it is still daunting even if the codes where "optimized". Hence extra caution is advised when using any code.
+
+This is especially true for func with MC_seq_bts, MT_MC which are random sample based on Monte-carlos.
+It will take up to 6 hours if you are lucky and up to 7 days if you maximise all parameter input.
+That is of course meaning your computer do not sleep/ shutdown/ crash.
+'''
+
 import pandas as pd
 import numpy as np
 import warnings
@@ -105,7 +120,7 @@ def co_events(data: pd.Series, events: pd.DataFrame, num_threads: int):
 # Sequential Bootstrap [4.5.2]
 ## Build Indicator Matrix [4.3]
 
-def _idx_matrix(data: pd.DataFrame, molecule):
+def _mp_idx_matrix(data: pd.DataFrame, molecule):
     '''
     this func is permenantly in debug mode.
     otherwise, code will not run. mp_pandas_obj does not allow int as index. Hence transpose not possible.
@@ -114,18 +129,21 @@ def _idx_matrix(data: pd.DataFrame, molecule):
     params: data => close price series
     '''
 
-    event_ = data[molecule.index.min(): molecule.max()].index
-    
+    event_ = data[molecule.index.min(): molecule.max()].index #in the book they included 1 more date index as max not sure why
     indM_ = pd.DataFrame(0., index = event_, columns= np.arange(molecule.shape[0]))
     for i,(t0,t1) in enumerate(molecule.iteritems()):
         indM_.loc[t0:t1,i] = 1.
     
     return indM_
 
-def idx_matrix(data: pd.Series, events: pd.DataFrame):
+def mp_idx_matrix(data: pd.Series, events: pd.DataFrame, num_threads = 1):
     '''
-    AFML pg 63 snippet 4.3
-    Calculates the number of times events sample overlaps each other
+    Calculates the number of times events sample overlaps each other.
+    This is a modified func, based on the initial func AFML pg 63 snippet 4.3
+    
+    This func is equipped with mulitprocessing.
+    Do NOT change number of threads.
+    Speed improvement up to 702 times over old func.
     
     logic is still based on initial func stated in AFML pg 63
     
@@ -133,6 +151,10 @@ def idx_matrix(data: pd.Series, events: pd.DataFrame):
     params: events => pandas DataFrame generated from tri_bar func
     
     Attempted to include mp_pandas_obj, only use 1 as num_threads. Still trying to debug for more threads.
+    
+    %timeit result:
+    2.55 s ± 40.5 ms per loop (mean ± std. dev. of 3 runs, 3 loops each)
+    2.57 s ± 63.6 ms per loop (mean ± std. dev. of 5 runs, 5 loops each)
     '''
     
     if isinstance(data, (pd.Series, pd.DataFrame)):        
@@ -154,9 +176,9 @@ def idx_matrix(data: pd.Series, events: pd.DataFrame):
     data.dropna(inplace=True) #create new index based on t1 events
     #dataIdx = data[events.index.min(): events.t1.max()].index # we only need full dates from events
     #indM_ = pd.DataFrame(0, index = dataIdx, columns=np.arange(events.t1.shape[0])).copy()
-    indM = mp_pandas_obj(func = _idx_matrix, 
+    indM = mp_pandas_obj(func = _mp_idx_matrix, 
                               pd_obj = ('molecule', events.t1),
-                              num_threads = 1,
+                              num_threads = num_threads,
                               axis = 1, # we are multiprocess based on columns so we need to flip over the axis
                               #indM_ = indM_,
                               data = data)
@@ -165,7 +187,7 @@ def idx_matrix(data: pd.Series, events: pd.DataFrame):
     return idxM
 
 
-def old_idx_matrix(data: pd.Series, events: pd.DataFrame):
+def idx_matrix(data: pd.Series, events: pd.DataFrame):
     '''
     AFML pg 63 snippet 4.3
     Calculates the number of times events sample overlaps each other
@@ -177,6 +199,7 @@ def old_idx_matrix(data: pd.Series, events: pd.DataFrame):
     params: events => pandas DataFrame generated from tri_bar func
     
     Attempted to include mp_pandas_obj
+    This version of idx_matrix will take up to 30 minutes when tested against (DataFrame.shape(4025, 1840))
     '''
     
     if isinstance(data, (pd.Series, pd.DataFrame)):        
@@ -184,8 +207,6 @@ def old_idx_matrix(data: pd.Series, events: pd.DataFrame):
             raise ValueError('data series contain isinf, NaNs, NaTs')
         elif isinstance(data, (str, list, dict, tuple, np.ndarray, pd.Series)):
             raise ValueError('data series contain non-float or non-integer values')
-    else:
-        raise ValueError('data input  must be pandas Series with datetime Index')
         
     if isinstance(events, (pd.Series, pd.DataFrame)):        
         if isinstance(events.t1, (str, list, dict, tuple, np.ndarray)):
@@ -193,7 +214,7 @@ def old_idx_matrix(data: pd.Series, events: pd.DataFrame):
     else:
         raise ValueError('events input must be pandas DataFrame with datetime Index, pls use tri_bar func provided')
         
-    warnings.warn("This func is single thread, kindly use the multiprocess version func provided i.e. idx_matrix")
+    warnings.warn("Kindly use the multiprocess version func provided i.e. mp_idx_matrix", DeprecationWarning, 2)
     
     data = data.dropna() #create new index based on t1 events
     dataIdx = data[events.index.min(): events.t1.max()].index # we only need full dates from events
@@ -221,7 +242,7 @@ def av_unique(idxM: pd.DataFrame):
     return avgU
 # =======================================================
 # return sample from sequential bootstrap [4.5]
-def seq_bts(idxM: pd.DataFrame, sample_len = None):
+def _mp_seq_bts(avgU: pd.Series, ind: int, phi: list, idxM: pd.DataFrame, sample_len: int):
     '''
     AFML pg 65 snippet 4.5
     This will make use of both av_unique and idx_matrix function to perform sequential bootstrap method.
@@ -231,6 +252,31 @@ def seq_bts(idxM: pd.DataFrame, sample_len = None):
     params: data => index matrix generated by func idx_matrix
     params: events => t1 datetime from triple barrier method func tri_bar
     params: sample_len => if only you want to do sub sample you may wish to reduce or increase to improve on uniqueness
+    '''
+    indM_ = idxM[phi + [ind]] # reduce indM
+    avgU.at[ind] = av_unique(indM_).iloc[-1] #get the last value, if it is very unique it's value will be high
+    return avgU
+
+
+def mp_seq_bts(idxM: pd.DataFrame, sample_len = None, num_threads = 1):
+    '''
+    AFML pg 65 snippet 4.5
+    This will make use of both av_unique and idx_matrix function to perform sequential bootstrap method.
+    The current func includes both func for ease of use.
+    
+    Improvement in speed over normal func(up to 50%). Will review later, refactor into class form and dask
+    
+    params: data => index matrix generated by func idx_matrix
+    params: events => t1 datetime from triple barrier method func tri_bar
+    params: sample_len => if only you want to do sub sample you may wish to reduce or increase to improve on uniqueness
+    
+    
+    %timeit results:
+    # mp sample len 5 num thread = 1: 34.3 s ± 751 ms per loop (mean ± std. dev. of 3 runs, 3 loops each)
+    # mp sample len 8 num thread = 1: 56.8 s ± 361 ms per loop (mean ± std. dev. of 3 runs, 3 loops each)
+    # mp sample len 15 num thread = 1: 1min 54s ± 1.47 s per loop (mean ± std. dev. of 3 runs, 3 loops each)
+    # mp sample len 15 num thread = 7: wtf, crashed.
+    
     '''
     
 
@@ -249,18 +295,115 @@ def seq_bts(idxM: pd.DataFrame, sample_len = None):
     # Generate a sample via sequential bootstrap
     if sample_len is None:
         sample_len=idxM.shape[1]
+    phi = []
+    while len(phi) < sample_len:
+        avgU=pd.Series(0., dtype=float)
+        for ind in idxM:
+            jobs = []
+            job = {'func': _mp_seq_bts, 
+                   'avgU': avgU, 
+                   'idxM': idxM,
+                   'phi': phi,
+                   'ind': ind,
+                   'sample_len': sample_len}
+            jobs.append(job) #spawn per loop
+            if num_threads == 1:
+                avgU_ = process_jobs_(jobs)
+            else:
+                avgU_ = process_jobs(jobs, num_threads = num_threads)
+        avgU = pd.Series(avgU_).sum()
+        prob = avgU/ avgU.sum()
+        phi.append(np.random.choice(idxM.columns, p=prob))
+    return phi
+
+#========================================================================
+def seq_bts(idxM: pd.DataFrame, sample_len = None):
+    '''
+    AFML pg 65 snippet 4.5
+    This will make use of both av_unique and idx_matrix function to perform sequential bootstrap method.
+    The current func includes both func for ease of use.
+    
+    In a nutshell, if the current loop aka [i], is not very unique. this effect will bring forward to other rows.
+    
+    This is especially true is concurrency is prevailing, it will suffer a very low weight since it will continueously be discounted.
+    This will again be reflected when we try to have out how unique each events is which in this func's case is the prob.
+    
+    If the previous choice did suffered from weight reduction but the next pick did not, the next pick will always have a higher probability.
+    Since it is 'pure' of concurrency.
+    
+    Bear in mind the variable "prob" is not an integer but rather a list of float which reflects the logic within AFML example 4.5.3
+    Which will tell np.random.choice to assign to labels withi higher probablility.
+    
+    params: data => index matrix generated by func idx_matrix
+    params: events => t1 datetime from triple barrier method func tri_bar
+    params: sample_len => if only you want to do sub sample you may wish to reduce or increase to improve on uniqueness
+    
+    %timeit results:
+    # normal sample len 5 : 57.6 s ± 921 ms per loop (mean ± std. dev. of 3 runs, 3 loops each)
+    # normal sample len 8 : 1min 48s ± 1.05 s per loop (mean ± std. dev. of 3 runs, 3 loops each)
+    # normal sample len 15: 3min 35s ± 5.86 s per loop (mean ± std. dev. of 3 runs, 3 loops each)
+    # normal sample len 25: 3min 19s ± 2.58 s per loop (mean ± std. dev. of 3 runs, 3 loops each)
+    
+    '''
+    if isinstance(idxM, (str, list, float, dict, tuple, np.ndarray, pd.Series)):
+        raise ValueError('idxM value must be pandas DataFrame, pls use idx_matrix func provided')
+    elif idxM.isnull().values.any():
+        raise ValueError('idxM value contains NaNs, np.isinf')
+            
+    if sample_len is not None:
+        if isinstance(sample_len, (str, list, float, dict, tuple, np.ndarray, pd.Series)):
+            raise ValueError('sLength must be positive non-decimal integer value i.e. 12, 30')
+        if sample_len > idxM.shape[1]:
+            warnings.warn('sample length exceeds index matrix column, may exceed expected waiting time.')
+
+    warnings.warn("Kindly use the multiprocess version func provided i.e. mp_seq_bts", DeprecationWarning, 2)
+    # Generate a sample via sequential bootstrap
+    if sample_len is None:
+        sample_len=idxM.shape[1]
     phi=[]
     
     while len(phi) < sample_len:
         avgU=pd.Series(0., dtype=float)
-    
         for i in idxM:
             indM_ = idxM[phi + [i]] # reduce indM
             avgU.loc[i] = av_unique(indM_).iloc[-1] #get the last value, if it is very unique it's value will be high
-        prob = avgU/ avgU.sum() # draw prob
-        p(prob[0])
+        prob = avgU/ avgU.sum() # this part lets you know the uniqueness of the entire series based on it's pick, hence assign prob
         phi.append(np.random.choice(idxM.columns, p=prob))
     return phi
+
+
+#===================================================
+    
+def _mp_MC_seq_bts(data: pd.DataFrame, events: pd.DataFrame, sample_len: int = None):
+    '''
+    This is a modified func based on AFML pg 67 snippet 4.9
+    
+    A similar monte carlos simulation will be used to perform sequential bootstrap
+    
+    '''
+    idxM = mp_idx_matrix(data = data, events = events)
+    phi = np.random.choice(idxM.columns, size = idxM.shape[1])
+    stdU = av_unique(idxM[phi]).mean()
+    phi = mp_seq_bts(idxM = idxM, sample_len = None)
+    seqU = av_unique(idxM[phi]).mean()
+    p('standard:{0}, sequential:{1}'.format(stdU, seqU))
+    return {'stdU':stdU, 'seqU':seqU}
+
+def MC_seq_bts(data: pd.DataFrame, events: pd.DataFrame, sample_len: int = None, num_iterations: int = 100, num_threads: int = 1):
+    jobs = []
+    for i in np.arange(int(num_iterations)):
+        job = {'func': _mp_MC_seq_bts, 
+               'data': data, 
+               'events': events, 
+               'sample_len': sample_len}
+        jobs.append(job)
+        if num_threads == 1:
+            out_ = process_jobs_(jobs)
+        else:
+            out_ = process_jobs(jobs, num_threads = num_threads)
+    out = pd.DataFrame(out_)
+    print(out.describe())
+    return out
 
 #===================================================
     
@@ -275,11 +418,11 @@ def rnd_t1(num_obs: int, num_bars: int, max_H: int):
 
 def auxMC(num_obs: int, num_bars: int, max_H: int):
     t1 = rnd_t1(num_obs, num_bars, max_H)
-    bar = range(t1.max() + 1)
-    indM = idx_matrix(data = bar, events = t1, num_threads = 1) #need to change to fit current algo
+    bar = range(t1.max()) #if you keep +1 error pops up
+    indM = mp_idx_matrix(data = bar, events = t1) #need to change to fit current algo
     phi = np.random.choice(indM.columns, size=indM.shape[1])
     stdU = av_unique(indM[phi]).mean()
-    phi = seq_bts(indM)
+    phi = mp_seq_bts(indM)
     seqU = av_unique(indM[phi]).mean()
     return {'stdU':stdU, 'seqU':seqU}
 
@@ -290,15 +433,20 @@ def MT_MC(num_obs: int = 10, num_bars: int = 100, max_H: int = 5, numIters: int 
     the idea is to generate a series of random numbers, the logic is same as monte carlos using nested loops
     to generate different paths.
     
-    params: num_obs => number of observations similar to number of path
-    params: num_bars => number of bars which is also used to mimic timesteps
-    params: max_H => maximum number for change in value simialr to standard deviation
-    params: num_Iters => number of loops by default 100,000
+    This is an important concept which allows you to understand how to use mp to parallelise your code based using process_jobs
+    Try to spend some time understanding the concept.
+    
+    In short, this algo is trying to build multiple montecarlos with mulitple random paths.
+    
+    params: num_obs => number of observations similar to number of path i.e. how many series to generate
+    params: num_bars => number of bars which is also used to mimic timesteps i.e. how long does the series goes
+    params: max_H => maximum number for change in value similar to standard deviation i.e. how much changes to each time step
+    params: num_Iters => number of loops by default 100,000 i.e. the number of times to create a monte carlos simulation
     params: num_threads => multiprocessing used for cores, processes.
     
     Still trying to fix
     '''
-    warnings.warn('This func does not fit into other aglos, do not use it!')
+    warnings.warn('This func does not fit into other aglos, do not use it, it was created for easier understanding for mp.process_jobs!')
     
     jobs = []
     for i in np.arange(int(numIters)):
