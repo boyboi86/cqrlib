@@ -464,19 +464,6 @@ def MT_MC(num_obs: int = 10, num_bars: int = 100, max_H: int = 5, numIters: int 
     print(pd.DataFrame(out).describe())
     return pd.DataFrame(out)
 
-'''
-# =======================================================
-# Determination of sample weight by absolute return attribution [4.10]
-def mpSampleW(t1,numCoEvents,close,molecule):
-    # Derive sample weight by return attribution
-    ret=np.log(close).diff() # log-returns, so that they are additive
-    wght=pd.Series(index=molecule)
-    for tIn,tOut in t1.loc[wght.index].items():
-        wght.loc[tIn]=(ret.loc[tIn:tOut]/numCoEvents.loc[tIn:tOut]).sum()
-    return wght.abs()
-
-# ============================================================
-'''
 
 def _wgth_by_rtn(data: pd.DataFrame, events: pd.Series, num_co_events: pd.DataFrame, molecule):
     rtn = np.log(data).diff().fillna(0) # Log-returns, so that they are additive
@@ -492,7 +479,10 @@ def wght_by_rtn(data: pd.DataFrame, events: pd.DataFrame, num_threads: int = 1):
     '''
     AFML page 69 snippet 4.10 
     weights based on abs returns.
-    Those with higher abs return should be given less weights, while
+    Those with higher abs return should be given less weights according to the book.
+    While the algo itself is a func of log price absolute return.
+    
+    I believe it may be required to drop rare labels, before this step was taken.
 
     param: data => close price series 
     param: events =>  pandas DataFrame using tri_bar func
@@ -526,7 +516,7 @@ def wght_by_rtn(data: pd.DataFrame, events: pd.DataFrame, num_threads: int = 1):
                           events = events['t1'], 
                           num_co_events = num_co_events)
     
-    out['w'] *= out.shape[0] / out['w'].sum()
+    out['w'] *= out.shape[0] / out['w'].sum() #I did not clear weights above 1, therefore you may encounter over weights.
     return out
 
 
