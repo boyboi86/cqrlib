@@ -7,24 +7,34 @@ def sym_csf(data: pd.Series, limit: float):
     params: pd.Series => time series input price only accepts ndarray, list, pd.series
     params: pd.Series => threshold before logging datetime index
     
-    This is not the original cumsum event in AFML pg 39 snippet 2.4
-    Most part of the code has been rewritten in numpy instead.
-    
+    AFML pg 39 snippet 2.4
     This func will give absolute return based on input price.
     As for limit, use original price series to derive standard deviation as an estimate.
     This is to ensure stationary series is homoscedastic.
     
     Logic is the same, but kindly go through the code before using it.
     
-    There is no imbalance in this algo, but there is a floor and ceiling which is set at zero.
+    WARNING!!: DO NOT EVER CHANGE data.diff() into data.apply(np.log).diff(), use only absolute price.
+    
+    np.log(data) does allow memory preservation but! that is not what we are looking for.
+    
+    In addition, np.log(data) contains additive properties. This will distort your data structure.
+    
+    The main use use for this func is to ensure your data structure is homoscedastic as much as possible, which is pivotal for mean-reversion strategy.
+    IF you change this line, 99.99% you will only get a Heteroscedastic data structure, no matter what you do at a later stage.
+    
+    This will haunt you at the later stage as you develop your mean-reversion strategy.
+    
+    The above claim is tested and proven (sort of..)
+    
+    This filter will ensure your data structure maintain a good data structural shape , 
+    which is key to mean-reversion strategy and to ensure your data structure is NOT too random.
+    
+    If you are not sure  what I mean pls go read up on "time-series stationarity" and run a white test using both log price and abs price.
+    
+    REPEAT 10 times: "you will not change this func"
     
     This filter return datatimeindex only.
-    
-    Currently using the below:
-    
-    #numba 0.49.1
-    #numpy 1.17.3
-    #pandas 1.0.3
     '''
     if isinstance(data, (str, float, int)):
         raise ValueError('Data must be numpy ndarray or pandas series!')
