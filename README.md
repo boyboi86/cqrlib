@@ -40,17 +40,25 @@ The textbook itself is meant for graduate studies writtern by Dr Macros Lopez De
 
 I will highly recommend you to purchase this book to bridge the knowledge gap.
 
-The mathematics behind most of what was taught are actually realistic and practical (White box).
-Every procedure that was taught in the book is specific at address common issues in Financial Machine-learning applications.
+The mathematics behind most of what was taught are actually sound and practical (White box).
+Every procedure that was taught in the book is specifically addressing common issues in Machine-learning in Financial industry.
 
 1. Either to improve statistic properties
 2. Improve Machine-Learning results
 
-Most of the code snippets written in the book was done using Python 2 & Pandas below stable release.
+Most of the code snippets written in the book was done using Python 2 & Pandas before stable release.
 
-I rewrote or modified the codes so that it will be compatible in Pandas 1.0.3 & Python 3.
+Most of the codes are modified so that it will be compatible in Python 3 & Pandas 1.0.3.
+
+Most of these codes not to rewritten into numpy so that new "quants" can relate & appreciate the theory behind these codes.
+
+> "Every successful investment strategy is always supported by an equally sound theory that is practical,
+>> you either prove with results or you prove the theory first.
+>> Either way one will always lead to another."
+>> - The cashier who initiated "Project Cauldrons"
 
 The code base is still messy since it is still under development stage.
+Due to lack of high frequency data samples, not all the techniques taught will be implemented.
 
 * Standard Data Bars
 * Imbalance Bars
