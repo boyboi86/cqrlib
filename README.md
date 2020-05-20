@@ -41,7 +41,7 @@ The textbook itself is meant for graduate studies writtern by Dr Macros Lopez De
 I highly recommend you to purchase this book to bridge the knowledge gap.
 
 The mathematics behind most of what was taught are actually sound and practical (White box).
-Every procedure that was taught in the book is specifically addressing common issues in Machine-learning in Financial industry.
+Every procedure that was taught in the book is specifically addressing common issues in Machine-learning within Financial industry.
 
 1. Either to improve statistic properties
 2. Improve Machine-Learning results
