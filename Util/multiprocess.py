@@ -1,22 +1,37 @@
 import sys
 import time
+import platform
 import datetime as dt
-
-from multiprocessing import Pool
-import types
-
-p = print
-p_ver = p('Python', sys.version)
-
-try: 
-    import copy_reg
-    p_ver
-except: 
-    import copyreg as copy_reg
-    p_ver # Python 3 syntax diff from python 2
 
 import numpy as np
 import pandas as pd
+
+from multiprocessing import Pool, cpu_count
+import types
+
+p = print
+
+p_cpu = p('Num of CPU core: ', cpu_count())
+p_platform = p('Machine info: ', platform.platform())
+p_ver = p('Python', sys.version)
+p_np_ver = p('Numpy', np.__version__)
+p_pd_ver = p('Pandas', pd.__version__)
+
+try: 
+    import copy_reg
+    p_cpu
+    p_platform
+    p_ver
+    p_np_ver
+    p_pd_ver
+except: 
+    import copyreg as copy_reg
+    p_cpu
+    p_platform
+    p_ver #python 3 syntax diff from python 2
+    p_np_ver
+    p_pd_ver
+
 
 def _pickle_method(method):
     func_name=method.im_func.__name__
