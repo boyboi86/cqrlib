@@ -1,6 +1,6 @@
 # Research Tools
 
-##Research tools for quantitative research (educational)
+Research tools for educational quantitative research "Project Cauldrons".
 
 Created for easier research, this repositary is built mainly using multiprocessing for parallel computering & pandas.
 As much as possible, I would prefer to use the 2 modules to ensure consistancy as well as taking it as an opportunity to improve my Python knowledge.
@@ -18,7 +18,7 @@ Please ensure you have the below modules installed in conda enviroment or pip:
 
 No documentation is provided as of this point in time, so you have to look for what you are interested in.
 
-### Volatility/ Option Related
+## Volatility/ Option Related
 
 * Black-Scholes-Merton Option Theoretical pricing, IV, Delta, Gamma, Vega
 * Premium Calculator
@@ -30,7 +30,7 @@ No documentation is provided as of this point in time, so you have to look for w
 * EWMA Daily Volatility Estimator
 * Garman Class Volatility
 
-### Mean-Reversion/ Futures Related
+## Mean-Reversion/ Futures Related
 
 Most of the logic can be found in Advance in Financial Machine Learning. 
 
