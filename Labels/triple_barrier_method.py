@@ -29,7 +29,7 @@ def _pt_sl_t1(data: pd.Series, events: pd.Series, ptSl: list, molecule):
         sl = - ptSl[1] * events_['trgt']
     else:
         sl = pd.Series(index = events.index) #Series with index but no value NaNs
-    for loc, t1 in events_['t1'].fillna(data.index[-1]).iteritems():
+    for loc, t1 in events_['t1'].fillna(data.index[-1]).items():
         df0 = data[loc:t1] #if tri_bar does not create new assign dataframe, data will go haywire when events
         df0 = (df0/data[loc] - 1) * events_.at[loc, 'side']
         out.loc[loc, 'sl'] = df0[df0 < sl[loc]].index.min()
