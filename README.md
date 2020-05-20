@@ -38,7 +38,7 @@ Most of the logic can be found in Advance in Financial Machine Learning.
 
 The textbook itself is meant for graduate studies writtern by Dr Macros Lopez De Prado.
 
-I will highly recommend you to purchase this book to bridge the knowledge gap.
+I highly recommend you to purchase this book to bridge the knowledge gap.
 
 The mathematics behind most of what was taught are actually sound and practical (White box).
 Every procedure that was taught in the book is specifically addressing common issues in Machine-learning in Financial industry.
@@ -48,7 +48,7 @@ Every procedure that was taught in the book is specifically addressing common is
 
 Most of the code snippets written in the book was done using Python 2 & Pandas before stable release.
 
-Most of the codes are modified so that it will be compatible in Python 3 & Pandas 1.0.3.
+Codes in this repositary are modified so that it will be compatible in Python 3 & Pandas 1.0.3.
 
 Most of these codes not to rewritten into numpy so that new "quants" can relate & appreciate the theory behind these codes.
 
@@ -57,8 +57,7 @@ Most of these codes not to rewritten into numpy so that new "quants" can relate 
 >> Either way one will always lead to another."
 >> - The cashier who initiated "Project Cauldrons"
 
-The code base is still messy since it is still under development stage.
-Due to lack of high frequency data samples, not all the techniques taught will be implemented.
+Disclaimer: The code base is still messy since it is still under development stage and due to lack of high frequency data samples, not all the techniques taught will be implemented.
 
 * Standard Data Bars
 * Imbalance Bars
