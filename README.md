@@ -54,8 +54,10 @@ Most of these codes not to rewritten into numpy so that new "quants" can relate 
 
 > "Every successful investment strategy is always supported by an equally sound theory that is practical,
 > you either prove with results or you prove the theory first.
+>
 > Either way one will always lead to another."
- &mdash; The cashier who initiated "Project Cauldrons"
+
+&mdash; The cashier who initiated "Project Cauldrons"
 
 Disclaimer: The code base is still messy since it is still under development stage and due to lack of high frequency data samples, not all the techniques taught will be implemented.
 
