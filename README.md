@@ -5,9 +5,9 @@ Research tools for educational quantitative research "Project Cauldrons".
 Created for easier research, this repositary is built mainly using multiprocessing for parallel computering & pandas.
 As much as possible, I would prefer to use the 2 modules to ensure consistancy as well as taking it as an opportunity to improve my Python knowledge.
 
-Please make sure you go through the algorithm before using it, let me know if you found error anywhere.
+Please make sure you go through the code before using it, let me know if you found error anywhere. Feel free to contribute.
 
-This repo is purely for educational purpose, good for quantitative concept reinforcement and hands-on experience.
+This repository is purely for educational purpose, good for quantitative concept reinforcement and hands-on experience.
 
 Please ensure you have the below modules installed in conda enviroment or pip:
 
@@ -40,17 +40,17 @@ The textbook itself is meant for graduate studies writtern by Dr Macros Lopez De
 
 I highly recommend you to purchase this book to bridge the knowledge gap.
 
-The mathematics behind most of what was taught are actually sound and practical (White box).
-Every procedure that was taught in the book is specifically addressing common issues in Machine-learning within Financial industry.
+The mathematics behind what was taught in the book are actually sounded and practical (Considered white box).
+Every procedure that was taught is specifically addressing concerns using Machine-learning within Financial industry.
 
 1. Either to improve statistic properties
-2. Improve Machine-Learning results
+2. Provide better machine-learning results
+3. Code optimization
 
 Most of the code snippets written in the book was done using Python 2 & Pandas before stable release.
 
-Codes in this repositary are modified so that it will be compatible in Python 3 & Pandas 1.0.3.
-
-Most of these codes not to rewritten into numpy so that new "quants" can relate & appreciate the theory behind these codes.
+The codes found in this repository are modified so that it will be compatible in Python 3 & Pandas 1.0.3 (Rather than Numpy).
+Hopefully new "quants" can relate to the textbook & appreciate the theory behind these codes.
 
 > "Every successful investment strategy is always supported by an equally sound theory that is practical,
 > you either prove with results or you prove the theory first.
