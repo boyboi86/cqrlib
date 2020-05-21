@@ -148,18 +148,24 @@ def white_random(data: pd.DataFrame):
 # Classification report for ML
 #==============================================================================
     
-def report_matrix(data: pd.Series):
+def report_matrix(actual_data: pd.Series, prediction_data: pd.Series = None):
     '''
     This func is meant to be used with meta labels
     data input should be func label => output
+    If single meta-label before any classification etc
+    params: actual_data => metalabels from func label i.e. label
+                            Otherwise training data will be used as actual
     
-    params: data => metalabels from func label i.e. label
+    optional params: prediction_data => in the event after fitting and train val & predict val is created
+                                         Alt_data will act as prediction
     '''
-
-    forecast0 = data['bin'].to_frame(name = 'actual')
-    forecast0['pred'] = pd.Series(1, index = forecast0.index)
-    
-    actual, pred = forecast0['actual'], forecast0['pred']
+    if prediction_data is None:
+        forecast0 = actual_data['bin'].to_frame(name = 'actual')
+        forecast0['pred'] = pd.Series(1, index = forecast0.index)
+        
+        actual, pred = forecast0['actual'], forecast0['pred']    
+    else:
+        actual, pred = actual_data, prediction_data
     
     if (actual.value_counts()[1] < actual.value_counts()[0]) and pred.iloc[1] != 1:
         p("prediction value should be 1\n")
