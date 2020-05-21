@@ -4,6 +4,7 @@ import datetime
 import warnings
 from research.Util.multiprocess import mp_pandas_obj
 
+p = print
 
 def _pt_sl_t1(data: pd.Series, events: pd.Series, ptSl: list, molecule):
     '''
@@ -196,10 +197,19 @@ def drop_label(events: pd.Series, min_pct: float = .05):
     During training stage only labels deem somewhat reliable will be used
     
     Normalized outcome as a measure, to maintain shape of data sample.
-    Default value is 0.05, any extreme value at [-0.95, 0.95] will be dropped as rare occurance.
+    Default critical size is 0.05, basically if a label is consider rare it will be dropped.
+    Increasing critical size will impact the number of data sample available, but also if too many rare sample is fed to ML.
+    It will reduce accuracy.
+    
+    If the based on value count of 'bin', lowest frequency is 0. Then 0 will be dropped entirely.
+    The criteria for this infinite loop to break would be to drop one of the labels -1,0,1
+    Or minimal percentage is less than bin value count this is to prevent imbalance within data sample.
+
     
     params: events => DataFrame from labels func
-    params: min_pct => float value as a meansure based on normalization.
+    params: min_pct => float value as a measure based on normalization. 
+                       This is not return measure but rather what is the lowest percentage to accpet as non-rare labels.
+                        
     '''
     if isinstance(min_pct,(list, np.ndarray, pd.Series)) or min_pct <= 0:
         raise ValueError('min_pct must be positive float i.e. 0.05')
@@ -211,14 +221,9 @@ def drop_label(events: pd.Series, min_pct: float = .05):
     
     while True:
         df0=events['bin'].value_counts(normalize=True)
-        if df0.min() > min_pct or df0.shape[0] < 3:
+        if df0.min() > min_pct or df0.shape[0] < 3: 
             break
-        try:
-            events=events[events['bin']!=df0.argmin()]
-            print('dropped label: ', df0.argmin(),df0.min())
-        except:
-            events=events[events['bin']!=df0.idxmin()]
-            print('dropped label: ', df0.idxmin(),df0.min())
+        events=events[events['bin']!=df0.idxmin()]
     return events
 
 def label(data: pd.Series, events: pd.DataFrame):
