@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 #from numba import njit 
 
-def sym_csf(data: pd.Series, limit: float):
+def cs_filter(data: pd.Series, limit: float):
     '''
     params: pd.Series => time series input price only accepts ndarray, list, pd.series
     params: pd.Series => threshold before logging datetime index

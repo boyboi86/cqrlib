@@ -10,7 +10,7 @@ from research.Util.opt_prob_calculator import *
 from research.Labels.triple_barrier_method import _pt_sl_t1, vert_bar, tri_bar, label, drop_label
 from research.Labels.percentile_score import *
 
-from research.Filters.filters import sym_csf
+from research.Filters.filters import cs_filter
 
 from research.Sampling.sample_unique import (co_events, 
                                              idx_matrix, mp_idx_matrix, 
