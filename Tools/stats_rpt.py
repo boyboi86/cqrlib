@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt 
 import scipy.stats as si
 
 #from arch.unitroot import ADF, KPSS
@@ -9,9 +10,7 @@ import statsmodels.api as smi
 
 from statsmodels.tsa.stattools import adfuller, kpss
 
-from sklearn.metrics import classification_report
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, roc_curve
 
 p = print
 
@@ -101,11 +100,11 @@ def unit_root(data: pd.Series):
     
     params: data => close price series
     '''
-    adf = adfuller(data, maxlg = 1, regression='c', autolag = None)[1]
-    kpss_ = kpss(data, regression='ct', lags='auto')[1]
-    if (adf <= 0.05 and kpss >= 0.05):
+    adf_ = (adfuller(data, maxlag = 1, regression='c', autolag = None)[1])
+    kpss_ = (kpss(data, regression='ct', lags= None)[1])
+    if (adf_ <= 0.05 and kpss_ >= 0.05):
         p("\nADF & KPSS: Weak evidence for stationary\n")
-    elif adf <= 0.05:
+    elif adf_ <= 0.05:
         p('\nReject ADF Null hypothesis: Weak evidence that series is stationary')
         p('Reject KPSS Null hypothesis: Series contains unit root\n')
     elif kpss_ >= 0.05:
@@ -148,7 +147,7 @@ def white_random(data: pd.DataFrame):
 # Classification report for ML
 #==============================================================================
     
-def report_matrix(actual_data: pd.Series, prediction_data: pd.Series = None):
+def report_matrix(actual_data: pd.Series, prediction_data: pd.Series = None, ROC = None):
     '''
     This func is meant to be used with meta labels
     data input should be func label => output
@@ -158,6 +157,10 @@ def report_matrix(actual_data: pd.Series, prediction_data: pd.Series = None):
     
     optional params: prediction_data => in the event after fitting and train val & predict val is created
                                          Alt_data will act as prediction
+                                         
+    optional params: ROC => runs ROC graph based on dataset; input must be probabilites from random forest
+                            after running fit method on classifier, using predict_prob func from sklearn
+                            choose only the True positive column i.e. predict_prob(actual_data)[:,1]
     '''
     if prediction_data is None:
         forecast0 = actual_data['bin'].to_frame(name = 'actual')
@@ -166,11 +169,6 @@ def report_matrix(actual_data: pd.Series, prediction_data: pd.Series = None):
         actual, pred = forecast0['actual'], forecast0['pred']    
     else:
         actual, pred = actual_data, prediction_data
-    
-    if (actual.value_counts()[1] < actual.value_counts()[0]) and pred.iloc[1] != 1:
-        p("prediction value should be 1\n")
-    elif (actual.value_counts()[1] > actual.value_counts()[0]) and pred.iloc[1] != 0:
-        p("prediction value should be 0\n")
     
     sep = "=" * 55
     p(" Classification Report\n{0}\n{1}\n"
@@ -183,5 +181,45 @@ def report_matrix(actual_data: pd.Series, prediction_data: pd.Series = None):
 
     p(" Accuracy Score\n{0}\n{1}\n".format(sep, accuracy_score(actual, pred)))
     
-    return forecast0
+    if ROC is not None:
+        roc_graph(true_data = actual_data, score_data = ROC)
+    else:
+        return
     
+def roc_graph(true_data, score_data):
+    '''
+    This graph should be used to give a visual graph to see ROC TP/ FP
+    
+    params: true_data => series after predict; True binary labels
+    params: score_data => Target scores, can either be probability estimates of the positive class, confidence values, 
+                          or non-thresholded measure of decisions (as returned by “decision_function” on some classifiers)
+    '''
+    False_Positive, True_Positive, _ = roc_curve(true_data, score_data)
+
+    plt.figure(1)
+    plt.plot([0, 1], [0, 1], 'k--')
+    plt.plot(False_Positive, True_Positive, label='Random Forest')
+    plt.xlabel('False positive rate')
+    plt.ylabel('True positive rate')
+    plt.title('ROC curve')
+    plt.legend(loc='best')
+    plt.show()
+    
+def feat_imp(fitted_model, feature_dataframe: pd.DataFrame):
+    '''
+    params: fitted_model => sklearn random forest model, after model is fitted using split_test_train input
+    params: feature_dataframe => initial dataframe that was used to fit random forest
+    '''
+    title = 'Feature Importance:'
+    figsize = (15, 5)
+    
+    feat_imp = pd.DataFrame({'Importance':fitted_model.feature_importances_})    
+    feat_imp['feature'] = feature_dataframe.columns
+    feat_imp.sort_values(by='Importance', ascending=False, inplace=True)
+    feat_imp = feat_imp
+    
+    feat_imp.sort_values(by='Importance', inplace=True)
+    feat_imp = feat_imp.set_index('feature', drop=True)
+    feat_imp.plot.barh(title=title, figsize=figsize)
+    plt.xlabel('Feature Importance Score')
+    plt.show()
