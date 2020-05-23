@@ -8,7 +8,7 @@ from research.Util.opt_prob_calculator import *
 #from research.Tools.root_methods import *
 from research.Tools.stats_rpt import normality, unit_root, report_matrix, white_random, feat_imp
 
-from research.Labels.triple_barrier_method import _pt_sl_t1, vert_bar, tri_bar, label, drop_label
+from research.Labels.triple_barrier_method import _pt_sl_t1, vert_barrier, tri_barrier, meta_label, drop_label
 from research.Labels.percentile_score import *
 
 from research.Filters.filters import cs_filter
