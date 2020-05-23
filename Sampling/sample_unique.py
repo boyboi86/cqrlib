@@ -84,8 +84,6 @@ def co_events(data: pd.Series, events: pd.DataFrame, num_threads: int):
             raise ValueError('data input must be pandas Series i.e. close price series')
         else:
             data = data.squeeze()
-    else:
-        raise ValueError('data input must be pandas Series with dtype either float or integer value i.e. close price series')
         
     if isinstance(events, pd.DataFrame):
         if isinstance(events, (int, str, float, dict, tuple, list)):
