@@ -38,7 +38,7 @@ def _pt_sl_t1(data: pd.Series, events: pd.Series, ptSl: list, molecule):
     return out
 
 
-def tri_bar(data: pd.Series, events: pd.DatetimeIndex, trgt: pd.Series, min_req: float, 
+def tri_barrier(data: pd.Series, events: pd.DatetimeIndex, trgt: pd.Series, min_req: float, 
                num_threads: int = 3, ptSl: list = [1,1], t1: pd.Series = False, side: pd.Series = None):
     '''
     AFML pg 50 snippet 3.6
@@ -87,7 +87,7 @@ def tri_bar(data: pd.Series, events: pd.DatetimeIndex, trgt: pd.Series, min_req:
         raise ValueError('Data must be numpy ndarray or list i.e. [1,1]')
     elif ptSl[0] == np.nan or ptSl[1] == np.nan:
         raise ValueError('Data must be numpy 1darray shape(1,2) i.e. [1,1]')
-    elif ptSl[0] <= 0 or ptSl[1] <= 0:
+    elif ptSl[0] < 0 or ptSl[1] < 0:
         # test case for irrational users
         raise ValueError('Data must be numpy 1darray shape(1,2) with values more than 0 i.e. [1,1]')
         
@@ -130,12 +130,12 @@ def tri_bar(data: pd.Series, events: pd.DatetimeIndex, trgt: pd.Series, min_req:
     events['t1'] = df0.dropna(how = 'all').min(axis = 1) # pd.min ignore NaNs
     if side_ == 0:
         events = events.drop('side', axis = 1) #if side_ counter is set to 0
-    return events
+    return events.dropna()
 
 
 # =======================================================
 
-def vert_bar(data: pd.Series, events:pd.DatetimeIndex, period: str = 'days', freq: int = 1):
+def vert_barrier(data: pd.Series, events:pd.DatetimeIndex, period: str = 'days', freq: int = 1):
     '''
     AFML pg 49 modified snippet 3.4
     This is not the original snippet, there is some slight change to period
@@ -226,7 +226,7 @@ def drop_label(events: pd.Series, min_pct: float = .05):
         events=events[events['bin']!=df0.idxmin()]
     return events
 
-def label(data: pd.Series, events: pd.DataFrame):
+def meta_label(data: pd.Series, events: pd.DataFrame, drop = False):
     '''
     AFML page 51 snippet 3.7
     Basically this func will return meta-labels or price-labels, which is dependent on 'side' if exist.
@@ -254,15 +254,18 @@ def label(data: pd.Series, events: pd.DataFrame):
         raise ValueError('Data must be pd.DataFrame, this function is used after triple barrier function i.e. close price series')
 
     
-    events_ = events.dropna(subset=['t1'])
+    events_ = events.dropna(subset = ['t1'])
     px = events_.index.union(events_['t1'].values).drop_duplicates()
-    px=data.reindex(px, method='bfill')
+    px=data.reindex(px, method = 'bfill')
     
     out = pd.DataFrame(index = events_.index)
     out['ret'] = px.loc[events_['t1'].values].values/ px.loc[events_.index] - 1
     if 'side' in events_:
-        out['ret']*=events_['side'] #meta-labeling
+        out['ret'] *= events_['side'] #meta-labeling
     out['bin'] = np.sign(out['ret'])
     if 'side' in events_:
         out.loc[out['ret'] <= 0, 'bin'] = 0
+        out['side'] = events_['side']
+    if drop is not False:
+        out = drop_label(events = out, min_pct = drop)
     return out
