@@ -79,10 +79,6 @@ def fracDiff_FFD(data: pd.Series, d: float, thres: float = 1e-2):
     
     if isinstance(data, (str, float, int, dict, tuple)):
         raise ValueError('Data must be numpy ndarray or pandas data!')
-    elif data.isnull().values.any():
-        raise ValueError('Data contain NaNs, kindly review data input!')
-    else:
-        data = data.to_frame()
         
     if isinstance(d, (list, str, dict, tuple, pd.Series, np.ndarray, pd.DataFrame)):
         raise ValueError('d val must be float, hypothesis test critical size i.e. 0.05')
@@ -112,7 +108,7 @@ def fracDiff_FFD(data: pd.Series, d: float, thres: float = 1e-2):
 
 
 def min_value(data: pd.Series, FFD = True, thres: float = 1e-2, pval_threshold: float = 0.05,
-              num: int = 100):
+              num: int = 10):
     '''
     params: data => non-stationary close price series
     params: FFD => boolean type with 2 possible values only fracDiff_FFD (True) or fracDiff (False)
@@ -121,7 +117,7 @@ def min_value(data: pd.Series, FFD = True, thres: float = 1e-2, pval_threshold: 
     params: num=> number of samples to check for ADF test, control grandularity of possible d val 
     '''
     func = fracDiff_FFD
-    if FFD != True: func = fracDiff
+    if FFD is not True: func = fracDiff
     functype = ['Fixed Window FD', 'Expanding Window FD']
     
     if isinstance(data, (str, float, int, dict, tuple)):
@@ -135,7 +131,7 @@ def min_value(data: pd.Series, FFD = True, thres: float = 1e-2, pval_threshold: 
         raise ValueError('func input is function input choose either fracDiff_FFD or fracDiff provided!')
     elif FFD != True and FFD != False:
         raise ValueError('FFD must be boolean arguement, default will be True i.e. True or False')
-    elif func != fracDiff_FFD or func != fracDiff:
+    elif func != fracDiff_FFD and func != fracDiff:
         raise ValueError('func takes arg only fracDiff_FFD or fracDiff, default will be fracDiff_FFD')
     else:
         if func == fracDiff_FFD: p('Function used: {0}'.format(functype[0]))
@@ -165,7 +161,7 @@ def min_value(data: pd.Series, FFD = True, thres: float = 1e-2, pval_threshold: 
         thres = int(thres)
     
     d_domain = np.linspace(start = 0, 
-                           stop = 2, 
+                           stop = 1, 
                            num = num, 
                            endpoint = True, 
                            retstep = False, 
@@ -177,12 +173,13 @@ def min_value(data: pd.Series, FFD = True, thres: float = 1e-2, pval_threshold: 
         df2 = adfuller(df2.squeeze(), maxlag=1, regression='c', autolag=None)
         try:
             if df2[1] <= pval_threshold:
+                p("d value: {0}".format(d))
                 return d
         except:
             p('Something is wrong! Most likely required d value more than 2!!')
 
 
-def plot_min_ffd(close_prices: pd.Series, max_d = 2, pval_threshold: float = 0.05):
+def plot_min_ffd(close_prices: pd.Series, max_d = 1, pval_threshold: float = 0.05):
     '''    
     params: close_price: pd.data
     max_d: maximum value to differentiate (optional)
@@ -193,7 +190,7 @@ def plot_min_ffd(close_prices: pd.Series, max_d = 2, pval_threshold: float = 0.0
         return
     close_prices = close_prices.to_frame()
     out = pd.DataFrame(columns=['adfStat', 'pVal', 'lags', 'nObs', '95% conf', 'corr'])
-    for d in np.linspace(0, max_d, 200):
+    for d in np.linspace(0, max_d, 11):
         df1 = np.log(close_prices[['close']]).resample('1D').last()  # downcast to daily obs        
         df1.dropna(inplace=True)
         df2 = fracDiff_FFD(data = df1, d = d, thres = 1e-2).dropna()
