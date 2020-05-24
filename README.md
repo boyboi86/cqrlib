@@ -9,14 +9,24 @@ Please make sure you go through the code before using it, let me know if you fou
 
 This repository is purely for educational purpose, good for quantitative concept reinforcement and hands-on experience.
 
-Please ensure you have the below modules installed in conda enviroment or pip:
+In general, I try to use as little external libraries/ modules as possible. So that the repositary is easier to maintain.
+
+Please ensure you have the below modules installed/ upgrade in conda enviroment or pip:
 
 * Python 3.7.4
 * numpy 1.17.3
 * numba 0.49.1
 * pandas 1.0.3
+* matplotlib 3.1.1
+* sklearn 0.23.1
 
 No documentation is provided as of this point in time, so you have to look for what you are interested in.
+
+For option related codes, I haven't develop as much lately. 
+
+I am looking forward to build option related strategies based on "Volatility Trading" written by a fellow Mensian, Dr Euan Sinclair.
+
+![logo](https://media.wiley.com/product_data/coverImage300/37/11183471/1118347137.jpg)
 
 ## Volatility/ Option Related
 
