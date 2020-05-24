@@ -15,8 +15,8 @@ import pandas as pd
 import scipy.stats as si
 
 # CBOE benchmark
-period = 5
-tickers = ["^GSPC", "^VIX"]
+#period = 5
+#tickers = ["^GSPC", "^VIX"]
 p = print
 
 def ProbCalculate(spot, strike, window, sigma):
