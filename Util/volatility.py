@@ -32,8 +32,8 @@ def vol(data: pd.Series, span0: int = 100, period: str = 'days', num_period: int
     df0 = data.index.searchsorted(data.index - pd.Timedelta(freq))
     df0 = df0[df0 > 0]
     df0 = pd.Series(data.index[df0 - 1], index = data.index[data.shape[0] - df0.shape[0]:])
-    df0 = data.loc[df0.index]/data.loc[df0.array].array - 1
-    df0=df0.ewm(span = span0).std()
+    df0 = data.loc[df0.index]/data.loc[df0.values].values - 1
+    df0 = df0.ewm(span = span0).std()
     return df0
 
 def pks_vol(high: pd.Series, low: pd.Series, window: int = 20):
