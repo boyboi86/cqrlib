@@ -2,6 +2,8 @@
 
 from research.Util.multiprocess import mp_pandas_obj, opt_num_threads, process_jobs_, process_jobs
 from research.Util.volatility import *
+from research.Util.indicator import bband_as_side
+
 from research.Util.bsm_model import *
 from research.Util.opt_prob_calculator import *
 
@@ -13,7 +15,7 @@ from research.Labels.percentile_score import *
 
 from research.Filters.filters import cs_filter
 
-from research.Sampling.sample_unique import (co_events, 
+from research.Sampling.sample_unique import (wght_by_coevents, num_co_events,
                                              idx_matrix, mp_idx_matrix, 
                                              seq_bts, mp_seq_bts, 
                                              MC_seq_bts, MT_MC, 
