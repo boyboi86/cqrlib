@@ -44,6 +44,58 @@ def _num_co_events(dataIndex: pd.DatetimeIndex, t1: pd.Series, molecule):
         count.loc[tIn:tOut]+=1.
     return count.loc[molecule[0]:t1[molecule].max()]
 
+def num_co_events(data: pd.Series, events: pd.DataFrame, num_threads: int):
+    '''
+    This func only calculate num of concurrent event
+    
+    params: data => ORIGINAL close price series from imported data src
+    params: events => this is used in conjunction to vert_bar function or tri_bar.
+                      require pandas series with datetime value to check concurrent samples.
+    optional
+    params: num_threads => number of process to spawn for multiprocessing, default is 1. Pls do not change.
+    
+    t1 is the end of period dor vert_bar func, 
+    where t0 which is the beginning period based on filter criteria will become vert_bar index.
+    '''
+    if isinstance(data, pd.Series):   
+        if isinstance(data.dtype, (str, dict, tuple, list)):
+            raise ValueError('data input must be pandas Series with dtype either float or integer value i.e. close price series')
+        if data.isnull().values.any():
+            raise ValueError('data series contain isinf, NaNs')
+            
+    if isinstance(data, pd.DataFrame):
+        if isinstance(data.squeeze().dtype, (str, dict, tuple, list)):
+            raise ValueError('data input must be pandas Series with dtype either float or integer value i.e. close price series')
+        elif not isinstance(data.squeeze(), pd.Series):
+            raise ValueError('data input must be pandas Series i.e. close price series')
+        else:
+            data = data.squeeze()
+        
+    if isinstance(events, pd.DataFrame):
+        if isinstance(events, (int, str, float, dict, tuple, list)):
+            raise ValueError('data input must be pandas DatetimeIndex or datetime values')
+        if events.isnull().values.any():
+            raise ValueError('events series contain isinf, NaNs, NaTs')
+        if events.index.dtype != 'datetime64[ns]' or events['t1'].dtype != 'datetime64[ns]':
+            raise ValueError('event["t1"] or devents.index is not datetime value')
+    else:
+        raise ValueError('data input must be pandas DateFrame please use tri_bar func provided')
+    
+        
+    if isinstance(num_threads, (str, float, dict, tuple, list, pd.Series, np.ndarray)):
+        raise ValueError('data input must be integer i.e. 1')
+
+    num_co_event =mp_pandas_obj(func = _num_co_events, 
+                      pd_obj=('molecule', events.index), 
+                      num_threads = num_threads,
+                      dataIndex = data.index,
+                      t1 = events['t1'])
+    
+    num_co_event = num_co_event.loc[~num_co_event.index.duplicated(keep='last')]
+    num_co_event = num_co_event.reindex(data.index).fillna(0)
+    
+    return num_co_event
+
 # =======================================================
 # Estimating the average uniqueness of a label [4.2]
 def _mp_sample_TW(t1: pd.DatetimeIndex, num_conc_events: int, molecule):
@@ -54,13 +106,13 @@ def _mp_sample_TW(t1: pd.DatetimeIndex, num_conc_events: int, molecule):
     params: molecule => multiprocess
     '''
     # Derive avg. uniqueness over the events lifespan
-    wght=pd.Series(0.0, index = molecule) # NaNs no val index only
+    wght=pd.Series(index = molecule) # NaNs no val index only
     for tIn,tOut in t1.loc[wght.index].items():
         wght.loc[tIn]=(1./ num_conc_events.loc[tIn:tOut]).mean()
     
     return wght
 
-def co_events(data: pd.Series, events: pd.DataFrame, num_threads: int):
+def wght_by_coevents(data: pd.Series, events: pd.DataFrame, num_threads: int):
     '''
     params: data => ORIGINAL close price series from imported data src
     params: events => this is used in conjunction to vert_bar function or tri_bar.
@@ -100,20 +152,20 @@ def co_events(data: pd.Series, events: pd.DataFrame, num_threads: int):
         raise ValueError('data input must be integer i.e. 1')
 
     out = pd.DataFrame()
-    df0=mp_pandas_obj(func = _num_co_events, 
+    num_co_event=mp_pandas_obj(func = _num_co_events, 
                       pd_obj=('molecule', events.index), 
                       num_threads = num_threads,
                       dataIndex = data.index,
                       t1 = events['t1'])
     
-    df0 = df0.loc[~df0.index.duplicated(keep='last')]
-    df0 = df0.reindex(data.index).fillna(0)
+    num_co_event = num_co_event.loc[~num_co_event.index.duplicated(keep='last')]
+    num_co_event = num_co_event.reindex(data.index).fillna(0)
     
     out['tW'] = mp_pandas_obj(func = _mp_sample_TW, 
                               pd_obj = ('molecule', events.index),
                               num_threads = num_threads,
                               t1=events['t1'],
-                              num_conc_events=df0)
+                              num_conc_events=num_co_event)
     return out
 
 # =======================================================
@@ -556,7 +608,10 @@ def wght_by_td(data: pd.Series, events: pd.DataFrame, num_threads: int = 1, td: 
     if isinstance(td, (int)) and td >= 0:
         td = float(td)
         
-    av_un = co_events(data = data, events = events, num_threads = num_threads)
+    av_un = wght_by_coevents(data = data, 
+                             events = events, 
+                             num_threads = num_threads)
+    
     wghts = av_un['tW'].sort_index().cumsum()
     if td >= 0:
         slope = (1 - td) / wghts.iloc[-1]
