@@ -22,24 +22,6 @@ Please ensure you have the below modules installed/ upgrade in conda enviroment 
 
 No documentation is provided as of this point in time, so you have to look for what you are interested in.
 
-For option related codes, I haven't develop as much lately. 
-
-I am looking forward to build option related strategies based on "Volatility Trading" written by a fellow Mensian, Dr Euan Sinclair.
-
-![logo](https://media.wiley.com/product_data/coverImage300/37/11183471/1118347137.jpg)
-
-## Volatility/ Option Related
-
-* Black-Scholes-Merton Option Theoretical pricing, IV, Delta, Gamma, Vega
-* Premium Calculator
-* Probaility Calculator
-* Probability of Profit(POP)
-* Volatility Percentile Score
-* Parkinson Volatility
-* Yang-Zhang Volatility
-* EWMA Daily Volatility Estimator
-* Garman Class Volatility
-
 ## Mean-Reversion/ Futures Related
 
 Most of the logic can be found in Advance in Financial Machine Learning. 
@@ -76,4 +58,23 @@ Disclaimer: The code base is still messy since it is still under development sta
 * Meta-Labels
 * Fractional Differentiate
 * Sequential bootstrapping
+
+For option related codes, I haven't develop as much lately. (Not extremely useful) 
+
+I am looking forward to build option related strategies based on "Volatility Trading" written by a fellow Mensian, Dr Euan Sinclair.
+
+![logo](https://media.wiley.com/product_data/coverImage300/37/11183471/1118347137.jpg)
+
+## Volatility/ Option Related
+
+* Black-Scholes-Merton Option Theoretical pricing, IV, Delta, Gamma, Vega
+* Premium Calculator
+* Probaility Calculator
+* Probability of Profit(POP)
+* Volatility Percentile Score
+* Parkinson Volatility
+* Yang-Zhang Volatility
+* EWMA Daily Volatility Estimator
+* Garman Class Volatility
+
 
