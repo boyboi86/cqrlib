@@ -21,6 +21,6 @@ from research.Sampling.sample_unique import (wght_by_coevents, num_co_events,
                                              MC_seq_bts, MT_MC, 
                                              wght_by_rtn, wght_by_td)
 
-from research.Features.fractional_diff import *
-from research.Features.futures_roll import *
-from research.Features.PCA_weight_dist import *
+from research.Features.fractional_diff import fracDiff_FFD, fracDiff, min_value, plot_min_ffd
+#from research.Features.futures_roll import *
+#from research.Features.PCA_weight_dist import *
