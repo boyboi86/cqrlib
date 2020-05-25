@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import warnings
+from research.Util.multiprocess import process_jobs_, process_jobs
 
 from numba import njit
 from statsmodels.tsa.stattools import adfuller
@@ -18,27 +18,6 @@ def getWeights(d: float, size: int):
     return w
 
 def fracDiff(data: pd.Series, d: float, thres: float = 1e-2):
-    
-    if isinstance(data, (str, float, int, dict, tuple)):
-        raise ValueError('Data must be numpy ndarray or pandas data!')
-    elif data.isnull().values.any():
-        raise ValueError('Data contain NaNs, kindly review data input!')
-    else:
-        data = data.to_frame()
-        
-    if isinstance(d, (list, str, dict, tuple, pd.Series, np.ndarray, pd.DataFrame)):
-        raise ValueError('d val must be positive float value within range(0,2) i.e. 0.05')
-    elif d <= 0 or d >= 2:
-        warnings.warn('d val must be positive float value, otherwise it will result in infinite observations i.e. 0.05')
-    else:
-        d = float(d)
-        
-    if isinstance(thres, (list, str, dict, tuple, pd.Series, np.ndarray, pd.DataFrame)):
-        raise ValueError('thres val must be float, kindly run func min_value provided see minimal d value for stationary i.e. 0.1!')
-    elif thres <= 1e-2:
-        warnings.warn('thres val <= 1.e-2 may not suit non-trend series, may take up longer than expected to calculate val i.e. 1e-5')
-    else:
-        thres = float(thres)
      
     w=getWeights(d, data.shape[0])
     w_=np.cumsum(abs(w))
@@ -76,23 +55,6 @@ def fracDiff_FFD(data: pd.Series, d: float, thres: float = 1e-2):
     params: d => minimal d value to pass ADF test
     params: threshold => threshold value to control weights before fitting
     '''
-    
-    if isinstance(data, (str, float, int, dict, tuple)):
-        raise ValueError('Data must be numpy ndarray or pandas data!')
-        
-    if isinstance(d, (list, str, dict, tuple, pd.Series, np.ndarray, pd.DataFrame)):
-        raise ValueError('d val must be float, hypothesis test critical size i.e. 0.05')
-    elif d <= 0 or d >= 2:
-        warnings.warn('d val must be non-zero positive float within range(0, 2) i.e. 0.05')
-    else:
-        d = float(d)
-        
-    if isinstance(thres, (list, str, dict, tuple, pd.Series, np.ndarray, pd.DataFrame)):
-        raise ValueError('thres val must be float, kindly run func min_value provided see minimal d value for stationary i.e. 0.1!')
-    elif thres <= 1e-2:
-        warnings.warn('thres val <= 1.e-2 may not suit non-trend series, may take up longer than expected to calculate val i.e. 1e-5')
-    else:
-        thres = float(thres)
         
     w, df = getWeights_FFD(d, thres), {}
     width = len(w)-1
@@ -107,59 +69,27 @@ def fracDiff_FFD(data: pd.Series, d: float, thres: float = 1e-2):
     return df
 
 
-def min_value(data: pd.Series, FFD = True, thres: float = 1e-2, pval_threshold: float = 0.05,
-              num: int = 10):
+def min_value(data: pd.Series, thres: float = 1e-2, pval_threshold: float = 0.05,
+              num: int = 100, num_threads: int = 3):
     '''
+    Please note, you may encounter memory error while running this func:
+    https://stackoverflow.com/questions/5537618/memory-errors-and-list-limits
+    
+    Data series should be log-price series or normal price series. 
+    The change in this func give users more flexibility to choose what they want.
+    
+    At the same time, users can no long choose between FFD or non-FFD. We will only use FFD.
+    This func is not meant to be used for cumsum series. Otherwise maxlag require to change to 2.
+    
     params: data => non-stationary close price series
-    params: FFD => boolean type with 2 possible values only fracDiff_FFD (True) or fracDiff (False)
-    params: thres => threshold value for d value weights
-    params: pval_threshold => p value for ADF hypothesis test critical size 0.1, 0.05, 0.01
-    params: num=> number of samples to check for ADF test, control grandularity of possible d val 
+    
+    optional params: thres => threshold value for d value weights
+    optional params: pval_threshold => p value for ADF hypothesis test critical size 0.1, 0.05, 0.01
+    optional params: num=> number of samples to check for ADF test, control grandularity of possible d val 
+    optional params: num_threads => multiprocessing
+    optional params: cumsum => cumulative sum for dat series default False
     '''
-    func = fracDiff_FFD
-    if FFD is not True: func = fracDiff
-    functype = ['Fixed Window FD', 'Expanding Window FD']
-    
-    if isinstance(data, (str, float, int, dict, tuple)):
-        raise ValueError('Data must be numpy ndarray or pandas data!')
-    elif data.isnull().values.any():
-        raise ValueError('Data contain NaNs, kindly review data input!')
-    else:
-        data = data.to_frame()
-        
-    if isinstance(func, (str, float, int, dict, tuple, pd.Series, np.ndarray, pd.DataFrame)):
-        raise ValueError('func input is function input choose either fracDiff_FFD or fracDiff provided!')
-    elif FFD != True and FFD != False:
-        raise ValueError('FFD must be boolean arguement, default will be True i.e. True or False')
-    elif func != fracDiff_FFD and func != fracDiff:
-        raise ValueError('func takes arg only fracDiff_FFD or fracDiff, default will be fracDiff_FFD')
-    else:
-        if func == fracDiff_FFD: p('Function used: {0}'.format(functype[0]))
-        else: p('Function used: {0}'.format(functype[1]))
-        
-    if isinstance(pval_threshold, (list, str, dict, tuple, pd.Series, np.ndarray, pd.DataFrame)):
-        raise ValueError('pval_threshold val must be float, hypothesis test critical size i.e. 0.05')
-    elif pval_threshold <= 0 or pval_threshold >= 0.1:
-        raise ValueError('pval_threshold val must be non-zero positive float within range(0.01, 0.1) i.e. 0.05')
-    else:
-        pval_threshold = float(pval_threshold)
-        
-    if isinstance(thres, (list, str, dict, tuple, pd.Series, np.ndarray, pd.DataFrame)):
-        raise ValueError('thres val must be float, kindly run func min_value provided see minimal d value for stationary i.e. 0.1!')
-    elif thres <= 1e-2:
-        warnings.warn('thres val <= 1.e-2 may not suit non-trend series, may take up longer than expected to calculate val i.e. 1e-5')
-    else:
-        thres = float(thres)
-        
-    if isinstance(num, (list, str, dict, tuple, pd.Series, np.ndarray, pd.DataFrame)):
-        raise ValueError('num val must be postive integer or non-decimal positive float i.e. 100!')
-    elif num < 100:
-        warnings.warn('num val must be more than or equal 100 default val is 100 i.e. 200')
-    elif num > 10000:
-        warnings.warn('num val is more than 10,000 which take up more than expected time to calculate.')
-    else:
-        thres = int(thres)
-    
+
     d_domain = np.linspace(start = 0, 
                            stop = 1, 
                            num = num, 
@@ -168,12 +98,24 @@ def min_value(data: pd.Series, FFD = True, thres: float = 1e-2, pval_threshold: 
                            dtype = float)
     
     for d in d_domain:
-        df1 = np.log(data).resample('1D').last() # pls note downcast to daily obs
-        df2 = func(df1, d, thres = thres).dropna()
-        df2 = adfuller(df2.squeeze(), maxlag=1, regression='c', autolag=None)
+        df1 = data.resample('1D').last() #give a good estimate for time reduction.
+        df2 = pd.Series()
+        jobs = []
+        job = {'func': fracDiff_FFD, 
+               'data': df1, 
+               'd': d,
+               'thres': thres}
+        jobs.append(job) #spawn per loop
+        if num_threads == 1:
+            out = process_jobs_(jobs)
+        else:
+            out = process_jobs(jobs, num_threads = num_threads)
+        for i in out: df2 = df2.append(i)
+        df2.dropna(inplace=True, how='all')
+        df2 = adfuller(df2.close, maxlag=1, regression='c', autolag=None)
         try:
             if df2[1] <= pval_threshold:
-                p("d value: {0}".format(d))
+                p("d value to attain stationarity: {0:.6f}".format(d))
                 return d
         except:
             p('Something is wrong! Most likely required d value more than 2!!')
@@ -184,6 +126,24 @@ def plot_min_ffd(close_prices: pd.Series, max_d = 1, pval_threshold: float = 0.0
     params: close_price: pd.data
     max_d: maximum value to differentiate (optional)
     pval_threshold: p-value to pass ADF test
+        
+    if isinstance(pval_threshold, (list, str, dict, tuple, pd.Series, np.ndarray, pd.DataFrame)):
+        raise ValueError('pval_threshold val must be float, hypothesis test critical size i.e. 0.05')
+    elif pval_threshold <= 0 or pval_threshold >= 0.1:
+        raise ValueError('pval_threshold val must be non-zero positive float within range(0.01, 0.1) i.e. 0.05')
+    else:
+        pval_threshold = float(pval_threshold)
+        
+    if isinstance(thres, (list, str, dict, tuple, pd.Series, np.ndarray, pd.DataFrame)):
+        raise ValueError('thres val must be float, kindly run func min_value provided see minimal d value for stationary i.e. 0.1!')
+    else:
+        thres = float(thres)
+        
+    if isinstance(num, (list, str, dict, tuple, pd.Series, np.ndarray, pd.DataFrame)):
+        raise ValueError('num val must be postive integer or non-decimal positive float i.e. 100!')
+    else:
+        thres = int(thres)
+    
     '''
     if pval_threshold > 0.05:
         print('p-value for ADF should be less than 0.05 to confirm for stationarity')
