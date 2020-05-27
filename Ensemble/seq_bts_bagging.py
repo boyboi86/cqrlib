@@ -1,9 +1,9 @@
 """
-Bagging meta-estimator.
+Bagging meta-estimator by from sklearn team. 
+Version 0.23.1.
+Thank you for the great work, looking forward to stable release!
 
-This is copied directly from sklearn version 0.23.1
-
-Thank you for the great work.
+Slight modification to fit sequential bootstrap method for sampling.
 """
 
 import itertools
@@ -48,7 +48,8 @@ def _generate_indices(random_state, bootstrap, n_population, n_samples):
 
 def _generate_bagging_indices(random_state, bootstrap_features,
                               bootstrap_samples, n_features, n_samples,
-                              max_features, max_samples):
+                              max_features, idx_Mat, max_samples):
+    
     """Randomly draw feature and sample indices."""
     # Get valid random state
     random_state = check_random_state(random_state)
@@ -56,13 +57,14 @@ def _generate_bagging_indices(random_state, bootstrap_features,
     # Draw indices
     feature_indices = _generate_indices(random_state, bootstrap_features,
                                         n_features, max_features)
-    sample_indices = _generate_indices(random_state, bootstrap_samples,
-                                       n_samples, max_samples)
+    sample_indices = mp_seq_bts(idxM = idx_Mat, sample_len = max_samples)
+    #sample_indices = _generate_indices(random_state, bootstrap_samples,
+    #                                   n_samples, max_samples)
 
     return feature_indices, sample_indices
 
 
-def _parallel_build_estimators(n_estimators, ensemble, X, y, sample_weight,
+def _parallel_build_estimators(n_estimators, ensemble, X, y, idx_Mat, sample_weight,
                                seeds, total_n_estimators, verbose):
     """Private function used to build a batch of estimators within a job."""
     # Retrieve settings
@@ -94,7 +96,7 @@ def _parallel_build_estimators(n_estimators, ensemble, X, y, sample_weight,
                                                       bootstrap_features,
                                                       bootstrap, n_features,
                                                       n_samples, max_features,
-                                                      max_samples)
+                                                      idx_Mat, max_samples)
 
         # Draw samples, using sample weights, and then fit
         if support_sample_weight:
@@ -194,6 +196,8 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
 
     @abstractmethod
     def __init__(self,
+                 data, # add to base class new inputs
+                 events,
                  base_estimator=None,
                  n_estimators=10, *,
                  max_samples=1.0,
@@ -218,6 +222,11 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
         self.n_jobs = n_jobs
         self.random_state = random_state
         self.verbose = verbose
+        
+        self.data = data # added new inputs
+        self.events = events
+        self.idx_Mat = mp_idx_matrix(data = data, events = events)
+        
 
     def fit(self, X, y, sample_weight=None):
         """Build a Bagging ensemble of estimators from the training
@@ -536,6 +545,8 @@ class BaggingClassifier(ClassifierMixin, BaseBagging):
     """
     @_deprecate_positional_args
     def __init__(self,
+                 data, # add to base class new inputs, funny depreciated
+                 events,
                  base_estimator=None,
                  n_estimators=10, *,
                  max_samples=1.0,
@@ -893,6 +904,8 @@ class BaggingRegressor(RegressorMixin, BaseBagging):
     """
     @_deprecate_positional_args
     def __init__(self,
+                 data, # add to base class new inputs, funny oso depreciated
+                 events,
                  base_estimator=None,
                  n_estimators=10, *,
                  max_samples=1.0,
