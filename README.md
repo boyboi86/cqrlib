@@ -1,15 +1,13 @@
-# Research Tools
+# Cauldrons Quantitative Research Library (cqrlib)
 
 Research tools for educational quantitative research "Project Cauldrons".
 
 Created for easier research, this repositary is built mainly using multiprocessing for parallel computering & pandas.
-As much as possible, I would prefer to use the 2 modules to ensure consistancy as well as taking it as an opportunity to improve my Python knowledge.
+As much as possible, we would prefer to use these as ou core modules to ensure code consistancy, easier maintenance (version migration) as well as taking it as an opportunity to improve Python knowledge.
 
-Please make sure you go through the code before using it, let me know if you found error anywhere. Feel free to contribute.
+cqrlib was created purely for educational purpose, these codes however are meant for quantitative strategy development/ implementation.
 
-This repository is purely for educational purpose, good for quantitative concept reinforcement and hands-on experience.
-
-In general, I try to use as little external libraries/ modules as possible. So that the repositary is easier to maintain.
+Feel free to contribute by completing any issues filed.
 
 Please ensure you have the below modules installed/ upgrade in conda enviroment or pip:
 
@@ -21,6 +19,11 @@ Please ensure you have the below modules installed/ upgrade in conda enviroment 
 * sklearn 0.23.1
 
 No documentation is provided as of this point in time, so you have to look for what you are interested in.
+
+**Disclaimer**
+Due to lack of resource, cqrlib can only provide most but not all algorithms found within Advances in Financial Machine Learning (AFML Chapter 2).
+
+If you wish to have a complete algorithm set, you may wish to go to [mlfinlab repository](https://github.com/hudson-and-thames/mlfinlab). The sample data used by cqrlib is the same as mlfinlab. Hence results should be the same.
 
 ## Mean-Reversion/ Futures Related
 
