@@ -51,7 +51,6 @@ def fracDiff_FFD(data: pd.Series, d: float, thres: float = 1e-2):
     to counter exponential decrease as compared to fracDiff calculation.
     
     params: data => non-stationary close price series
-    params: FFD => boolean type with 2 possible values only fracDiff_FFD (True) or fracDiff (False)
     params: d => minimal d value to pass ADF test
     params: threshold => threshold value to control weights before fitting
     '''
