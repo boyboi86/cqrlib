@@ -36,7 +36,7 @@ from sklearn.utils.random import sample_without_replacement
 from sklearn.utils.validation import has_fit_parameter, check_is_fitted, \
     _check_sample_weight, _deprecate_positional_args
 
-from research.Sampling.sample_unique import mp_seq_bts, mp_idx_matrix
+from research.Sampling.sample_unique import mp_seq_bts, mp_idx_matrix, av_unique
 
 __all__ = ["BaggingClassifier",
            "BaggingRegressor"]
@@ -70,9 +70,10 @@ def _generate_bagging_indices(random_state, bootstrap_features,
     
     
 #================================================================================         
-    
+ # Changes made here, to replace sample_indices with seq_bts
+  
     sample_indices = mp_seq_bts(idxM = idx_Mat, sample_len = max_samples,
-                                random_state = random_state)                    # Changes made here, to replace sample_indices with seq_bts
+                                random_state = random_state)                    
     
     
     #sample_indices = _generate_indices(random_state, bootstrap_samples,
@@ -119,17 +120,19 @@ def _parallel_build_estimators(n_estimators, ensemble, X, y, idx_Mat, sample_wei
                                                       n_samples, max_features,
                                                       idx_Mat, max_samples)
  
-#================================================================================                
-        
-        ctr_ = 0                                                            #added loop here to keep sample size for seq_bts consistant with Training data
+#================================================================================           
+#added loop here to keep sample size for seq_bts consistant with Training data
+
         if max(indices) > n_samples:
-            if not np.isin(indices, n_samples - 1).any() or ctr_ == 0:
+            if np.isin(indices, n_samples - 1).any():
+                ensemble.ctr_ += 1
+                
+            if not np.isin(indices, n_samples - 1).any() or ensemble.ctr_ == 0:
                 indices.append(n_samples - 1)
-                ctr_ += 1
+                ensemble.ctr_ += 1
+
             indices = [ind for ind in indices if ind < n_samples]
-        
-        if max(indices) < n_samples:
-            raise ValueError("max_samples must be more than n_sample, use higher max_sample")
+
             
 #================================================================================
                 
@@ -142,15 +145,16 @@ def _parallel_build_estimators(n_estimators, ensemble, X, y, idx_Mat, sample_wei
 
             if bootstrap:
                 sample_counts = np.bincount(indices, minlength=n_samples)
-#================================================================================                         
-                print("sample count", sample_counts)
-                print("indices before bicount", indices)
-                print("counter", ctr_)
-                if ctr_ >= 2:                                               #added some func here to prevent repeat
+                
+#================================================================================
+#added some func here to prevent repeat, since we are using n_sample as an estimate
+                         
+                if ensemble.ctr_ >= 2:                                               
                     sample_counts[-1] = 0
                     indices.remove(n_samples - 1)
-                print("sample count", sample_counts)
-                print("indices after bicount", indices)    
+                seq_bts_unique = av_unique(ensemble.idx_Mat[indices]).mean()
+                print("Ave uniqueness for grp sample {0}: {1:.6f}".format(ensemble.ctr_, seq_bts_unique))
+   
 #================================================================================                    
                     
                 curr_sample_weight *= sample_counts # sample count in pct
@@ -269,15 +273,18 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
         self.n_jobs = n_jobs
         self.random_state = random_state
         self.verbose = verbose
-        
-        self.data = data                                            # added new inputs
+#================================================================================          
+# added new inputs into self to pass around into other cls whenever required
+        self.data = data                                            
         self.events = events
         self.idx_Mat = mp_idx_matrix(data = data, events = events)
         self.idx_Mat_Map = pd.Series(data=np.arange(self.idx_Mat.shape[1]),
                                          index=events.index)                                   # we need to reserve a copy of idx_matrix, if shuffle = True, idx_matrix will be mixed up.
         
         self.X_idx = None                                                                       #this is important so tt subsample size can be reflected
+        self.ctr_ = 0
         
+#================================================================================          
     def fit(self, X, y, sample_weight=None):
         """Build a Bagging ensemble of estimators from the training
            set (X, y).
@@ -327,12 +334,14 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
         self : object
         """
         random_state = check_random_state(self.random_state)
+#================================================================================
+#try to match and "reindex", have to use iloc otherwise you will need to convert to np.ndarray        
+        self.X_idx = X.index                                          
         
-        self.X_idx = X.index                                          #before the training data are numpified
-        
-        idx_Mat_ = self.idx_Mat.iloc[:, self.idx_Mat_Map.loc[self.X_idx]]     #try to match and "reindex", have to use iloc otherwise you will need to convert to np.ndarray  
-        print("\nsub idx\n", idx_Mat_, "\n\n")
+        idx_Mat_ = self.idx_Mat.iloc[:, self.idx_Mat_Map.loc[self.X_idx]]  
         self.idx_Mat_ = idx_Mat_
+#================================================================================         
+        
         # Convert data (X is required to be 2d and indexable)
         X, y = self._validate_data(
             X, y, accept_sparse=['csr', 'csc'], dtype=None,
@@ -423,7 +432,9 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
 
         seeds = random_state.randint(MAX_INT, size=n_more_estimators)
         self._seeds = seeds
-
+#==============================================================================================
+ #added something here, need to subsample to fit training data
+ 
         all_results = Parallel(n_jobs=n_jobs, verbose=self.verbose,
                                **self._parallel_args())(
             delayed(_parallel_build_estimators)(
@@ -431,13 +442,13 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
                 self,
                 X,
                 y,
-                idx_Mat_,                                                #added something here, need to subsample to fit training data
+                idx_Mat_,                                               
                 sample_weight,
                 seeds[starts[i]:starts[i + 1]],
                 total_n_estimators,
                 verbose=self.verbose)
             for i in range(n_jobs))
-
+#===============================================================================================
         # Reduce
         self.estimators_ += list(itertools.chain.from_iterable(
             t[0] for t in all_results))
@@ -445,9 +456,9 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
             t[1] for t in all_results))
         self.estimators_bts_samples_ += list(itertools.chain.from_iterable(     #added something here, collect samples
             t[2] for t in all_results))
-        print("subsample estimator",self.estimators_)
-        print("subsample features",self.estimators_features_)
-        print("subsample bts",self.estimators_bts_samples_)
+        
+#===============================================================================================
+        
         if self.oob_score:
             self._set_oob_score(X, y)
 
