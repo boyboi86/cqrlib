@@ -1,14 +1,24 @@
 """
 Bagging meta-estimator by from sklearn team. 
 Version 0.23.1.
-Thank you for the great work, looking forward to stable release!
+Thank you for the great work, looking forward to 1.0.0 + release!
 
 Slight modification to fit sequential bootstrap method for sampling.
+
+sample indices => mp_seq_bts method
+
+include necessary inputs
+params: data => close price series,
+params: events => most likely your output from tri_barrier
+
+other optional params, i did not include them, within this ensemble. Therefore revert to default values
+
 """
 
 import itertools
 import numbers
 import numpy as np
+import pandas as pd
 from abc import ABCMeta, abstractmethod
 from warnings import warn
 
@@ -38,7 +48,7 @@ def _generate_indices(random_state, bootstrap, n_population, n_samples):
     """Draw randomly sampled indices."""
     # Draw sample indices
     if bootstrap:
-        indices = random_state.randint(0, n_population, n_samples)
+        indices = random_state.randint(0, n_population, n_samples) # most likely always this option otherwise.
     else:
         indices = sample_without_replacement(n_population, n_samples,
                                              random_state=random_state)
@@ -57,10 +67,19 @@ def _generate_bagging_indices(random_state, bootstrap_features,
     # Draw indices
     feature_indices = _generate_indices(random_state, bootstrap_features,
                                         n_features, max_features)
-    sample_indices = mp_seq_bts(idxM = idx_Mat, sample_len = max_samples)
+    
+    
+#================================================================================         
+    
+    sample_indices = mp_seq_bts(idxM = idx_Mat, sample_len = max_samples,
+                                random_state = random_state)                    # Changes made here, to replace sample_indices with seq_bts
+    
+    
     #sample_indices = _generate_indices(random_state, bootstrap_samples,
     #                                   n_samples, max_samples)
 
+
+#================================================================================         
     return feature_indices, sample_indices
 
 
@@ -81,6 +100,8 @@ def _parallel_build_estimators(n_estimators, ensemble, X, y, idx_Mat, sample_wei
     # Build estimators
     estimators = []
     estimators_features = []
+    estimators_indices = []                                                 #added something here
+    
 
     for i in range(n_estimators):
         if verbose > 1:
@@ -97,7 +118,21 @@ def _parallel_build_estimators(n_estimators, ensemble, X, y, idx_Mat, sample_wei
                                                       bootstrap, n_features,
                                                       n_samples, max_features,
                                                       idx_Mat, max_samples)
-
+ 
+#================================================================================                
+        
+        ctr_ = 0                                                            #added loop here to keep sample size for seq_bts consistant with Training data
+        if max(indices) > n_samples:
+            if not np.isin(indices, n_samples - 1).any() or ctr_ == 0:
+                indices.append(n_samples - 1)
+                ctr_ += 1
+            indices = [ind for ind in indices if ind < n_samples]
+        
+        if max(indices) < n_samples:
+            raise ValueError("max_samples must be more than n_sample, use higher max_sample")
+            
+#================================================================================
+                
         # Draw samples, using sample weights, and then fit
         if support_sample_weight:
             if sample_weight is None:
@@ -107,7 +142,18 @@ def _parallel_build_estimators(n_estimators, ensemble, X, y, idx_Mat, sample_wei
 
             if bootstrap:
                 sample_counts = np.bincount(indices, minlength=n_samples)
-                curr_sample_weight *= sample_counts
+#================================================================================                         
+                print("sample count", sample_counts)
+                print("indices before bicount", indices)
+                print("counter", ctr_)
+                if ctr_ >= 2:                                               #added some func here to prevent repeat
+                    sample_counts[-1] = 0
+                    indices.remove(n_samples - 1)
+                print("sample count", sample_counts)
+                print("indices after bicount", indices)    
+#================================================================================                    
+                    
+                curr_sample_weight *= sample_counts # sample count in pct
             else:
                 not_indices_mask = ~indices_to_mask(indices, n_samples)
                 curr_sample_weight[not_indices_mask] = 0
@@ -119,8 +165,9 @@ def _parallel_build_estimators(n_estimators, ensemble, X, y, idx_Mat, sample_wei
 
         estimators.append(estimator)
         estimators_features.append(features)
+        estimators_indices.append(indices)                                  #added something here
 
-    return estimators, estimators_features
+    return estimators, estimators_features, estimators_indices
 
 
 def _parallel_predict_proba(estimators, estimators_features, X, n_classes):
@@ -196,7 +243,7 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
 
     @abstractmethod
     def __init__(self,
-                 data, # add to base class new inputs
+                 data,                                  # add to base class new inputs
                  events,
                  base_estimator=None,
                  n_estimators=10, *,
@@ -223,11 +270,14 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
         self.random_state = random_state
         self.verbose = verbose
         
-        self.data = data # added new inputs
+        self.data = data                                            # added new inputs
         self.events = events
         self.idx_Mat = mp_idx_matrix(data = data, events = events)
+        self.idx_Mat_Map = pd.Series(data=np.arange(self.idx_Mat.shape[1]),
+                                         index=events.index)                                   # we need to reserve a copy of idx_matrix, if shuffle = True, idx_matrix will be mixed up.
         
-
+        self.X_idx = None                                                                       #this is important so tt subsample size can be reflected
+        
     def fit(self, X, y, sample_weight=None):
         """Build a Bagging ensemble of estimators from the training
            set (X, y).
@@ -277,7 +327,12 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
         self : object
         """
         random_state = check_random_state(self.random_state)
-
+        
+        self.X_idx = X.index                                          #before the training data are numpified
+        
+        idx_Mat_ = self.idx_Mat.iloc[:, self.idx_Mat_Map.loc[self.X_idx]]     #try to match and "reindex", have to use iloc otherwise you will need to convert to np.ndarray  
+        print("\nsub idx\n", idx_Mat_, "\n\n")
+        self.idx_Mat_ = idx_Mat_
         # Convert data (X is required to be 2d and indexable)
         X, y = self._validate_data(
             X, y, accept_sparse=['csr', 'csc'], dtype=None,
@@ -341,9 +396,10 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
             # Free allocated memory, if any
             self.estimators_ = []
             self.estimators_features_ = []
+            self.estimators_bts_samples_ = []
 
         n_more_estimators = self.n_estimators - len(self.estimators_)
-
+        
         if n_more_estimators < 0:
             raise ValueError('n_estimators=%d must be larger or equal to '
                              'len(estimators_)=%d when warm_start==True'
@@ -357,6 +413,7 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
         # Parallel loop
         n_jobs, n_estimators, starts = _partition_estimators(n_more_estimators,
                                                              self.n_jobs)
+
         total_n_estimators = sum(n_estimators)
 
         # Advance random state to state after training
@@ -374,6 +431,7 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
                 self,
                 X,
                 y,
+                idx_Mat_,                                                #added something here, need to subsample to fit training data
                 sample_weight,
                 seeds[starts[i]:starts[i + 1]],
                 total_n_estimators,
@@ -385,7 +443,11 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
             t[0] for t in all_results))
         self.estimators_features_ += list(itertools.chain.from_iterable(
             t[1] for t in all_results))
-
+        self.estimators_bts_samples_ += list(itertools.chain.from_iterable(     #added something here, collect samples
+            t[2] for t in all_results))
+        print("subsample estimator",self.estimators_)
+        print("subsample features",self.estimators_features_)
+        print("subsample bts",self.estimators_bts_samples_)
         if self.oob_score:
             self._set_oob_score(X, y)
 
@@ -409,7 +471,7 @@ class BaseBagging(BaseEnsemble, metaclass=ABCMeta):
             feature_indices, sample_indices = _generate_bagging_indices(
                 seed, self.bootstrap_features, self.bootstrap,
                 self.n_features_, self._n_samples, self._max_features,
-                self._max_samples)
+                self.idx_Mat_, self._max_samples)                            #added something here, coud be this problem
 
             yield feature_indices, sample_indices
 
@@ -545,7 +607,7 @@ class BaggingClassifier(ClassifierMixin, BaseBagging):
     """
     @_deprecate_positional_args
     def __init__(self,
-                 data, # add to base class new inputs, funny depreciated
+                 data,                          # add to base class new inputs, funny depreciated
                  events,
                  base_estimator=None,
                  n_estimators=10, *,
@@ -559,8 +621,10 @@ class BaggingClassifier(ClassifierMixin, BaseBagging):
                  random_state=None,
                  verbose=0):
 
-        super().__init__(
-            base_estimator,
+        super().__init__(     
+            data = data,                        # add to base class new inputs, funny depreciated
+            events = events,
+            base_estimator = base_estimator,
             n_estimators=n_estimators,
             max_samples=max_samples,
             max_features=max_features,
@@ -571,7 +635,7 @@ class BaggingClassifier(ClassifierMixin, BaseBagging):
             n_jobs=n_jobs,
             random_state=random_state,
             verbose=verbose)
-
+            
     def _validate_estimator(self):
         """Check the estimator and set the base_estimator_ attribute."""
         super()._validate_estimator(
@@ -584,7 +648,7 @@ class BaggingClassifier(ClassifierMixin, BaseBagging):
         predictions = np.zeros((n_samples, n_classes_))
 
         for estimator, samples, features in zip(self.estimators_,
-                                                self.estimators_samples_,
+                                                self.estimators_bts_samples_, #replaced estimators_samples_ with estimators_bts_samples_
                                                 self.estimators_features_):
             # Create mask for OOB samples
             mask = ~indices_to_mask(samples, n_samples)
@@ -904,7 +968,7 @@ class BaggingRegressor(RegressorMixin, BaseBagging):
     """
     @_deprecate_positional_args
     def __init__(self,
-                 data, # add to base class new inputs, funny oso depreciated
+                 data,                          # add to base class new inputs, funny oso depreciated
                  events,
                  base_estimator=None,
                  n_estimators=10, *,
@@ -918,7 +982,9 @@ class BaggingRegressor(RegressorMixin, BaseBagging):
                  random_state=None,
                  verbose=0):
         super().__init__(
-            base_estimator,
+            data = data,                        # add to base class new inputs, funny depreciated
+            events = events,
+            base_estimator = base_estimator,
             n_estimators=n_estimators,
             max_samples=max_samples,
             max_features=max_features,
@@ -954,7 +1020,7 @@ class BaggingRegressor(RegressorMixin, BaseBagging):
         # Parallel loop
         n_jobs, n_estimators, starts = _partition_estimators(self.n_estimators,
                                                              self.n_jobs)
-
+        
         all_y_hat = Parallel(n_jobs=n_jobs, verbose=self.verbose)(
             delayed(_parallel_predict_regression)(
                 self.estimators_[starts[i]:starts[i + 1]],
@@ -979,7 +1045,7 @@ class BaggingRegressor(RegressorMixin, BaseBagging):
         n_predictions = np.zeros((n_samples,))
 
         for estimator, samples, features in zip(self.estimators_,
-                                                self.estimators_samples_,
+                                                self.estimators_bts_samples_,   #replaced estimators_samples_ with estimators_bts_samples_
                                                 self.estimators_features_):
             # Create mask for OOB samples
             mask = ~indices_to_mask(samples, n_samples)
