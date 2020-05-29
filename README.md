@@ -18,12 +18,12 @@ Please ensure you have the below modules installed/ upgrade in conda enviroment 
 * matplotlib 3.1.1
 * sklearn 0.23.1
 
-No documentation is provided as of this point in time, so you have to look for what you are interested in.
+If you are interested in understanding how the codes work, I provided a notebook tutorial answers for easier understanding.
+
+[AFML juypter notebook](https://github.com/boyboi86/AFML)
 
 **Disclaimer**
 Due to lack of resource, cqrlib can only provide most but not all algorithms found within Advances in Financial Machine Learning (AFML Chapter 2).
-
-If you wish to have a complete algorithm set, you may wish to go to [mlfinlab repository](https://github.com/hudson-and-thames/mlfinlab). The sample data used by cqrlib is the same as mlfinlab. Hence results should be the same.
 
 ## Mean-Reversion/ Futures Related
 
@@ -44,7 +44,7 @@ Every procedure that was taught is specifically addressing concerns using Machin
 
 Most of the code snippets written in the book was done using Python 2 & Pandas before stable release.
 
-The codes found in this repository are modified so that it will be compatible in Python 3 & Pandas 1.0.3 (Rather than Numpy).
+The codes found in this repository is different from the book so that it will be compatible in Python 3 & Pandas 1.0.3 (Rather than Numpy).
 Hopefully new "quants" can relate to the textbook & appreciate the theory behind these codes.
 
 > "Every successful investment strategy is always supported by an equally sound theory that is practical,
