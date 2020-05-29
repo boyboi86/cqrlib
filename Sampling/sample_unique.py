@@ -542,7 +542,7 @@ def wght_by_rtn(data: pd.DataFrame, events: pd.DataFrame, num_threads: int = 1):
     return out
 
 
-def wght_by_td(data: pd.Series, events: pd.DataFrame, num_threads: int = 1, td: float = 1.):
+def wght_by_td(data: pd.DataFrame, events: pd.DataFrame, num_threads: int = 1, td: float = 1.):
     '''
     AFML page 70 Snippet 4.11
     
@@ -580,7 +580,7 @@ def wght_by_td(data: pd.Series, events: pd.DataFrame, num_threads: int = 1, td: 
     if isinstance(td, (int)) and td >= 0:
         td = float(td)
         
-    av_un = wght_by_coevents(data = data, 
+    av_un = wght_by_coevents(data = data.close, 
                              events = events, 
                              num_threads = num_threads)
     
