@@ -24,3 +24,5 @@ from research.Sampling.sample_unique import (wght_by_coevents, num_co_events, av
 from research.Features.fractional_diff import fracDiff_FFD, fracDiff, min_value, plot_min_ffd
 #from research.Features.futures_roll import *
 #from research.Features.PCA_weight_dist import *
+
+from research.Ensemble.seq_bts_bagging import BaggingClassifier, BaggingRegressor
