@@ -9,6 +9,7 @@ from sklearn.metrics import log_loss, accuracy_score
 from sklearn.model_selection import KFold
 from sklearn.base import ClassifierMixin
 from sklearn.model_selection import BaseCrossValidator
+from sklearn.utils import shuffle
 
 
 def train_times(events: pd.DataFrame, test_times: pd.Series) -> pd.Series:
@@ -89,7 +90,6 @@ class PurgedKFold(KFold):
 
         _idx = np.arange(X.shape[0])
         embargo = int(X.shape[0] * self.pct_embargo) #similar to sklearn round
-
         test_ranges = [(idx[0], idx[-1] + 1) for idx in np.array_split(np.arange(X.shape[0]), self.n_splits)]
         for start_idx, end_idx in test_ranges:
             t0  = self.events.index[start_idx]
@@ -111,7 +111,8 @@ def cv_score(
         pct_embargo: float = .0,
         cv_gen: BaseCrossValidator = None,
         sample_weight: np.ndarray = None,
-        scoring: str = "neg_log_loss"):
+        scoring: str = "neg_log_loss",
+        shuffle_after_split: bool = True):
 
     """
     Advances in Financial Machine Learning, Snippet 7.4, page 110.
@@ -143,9 +144,15 @@ def cv_score(
         
     scores = []
     for train, test in cv_gen.split(X=X, y=y): #we set y = None as default so we can leave it as it is
+#==============================================================
+        if shuffle_after_split is True:        
+            train = shuffle(train, 
+                            random_state = classifier.random_state) #added for randomness
+#==============================================================
         fit = classifier.fit(X = X.iloc[train, :],
                              y = y.iloc[train],
                              sample_weight = sample_weight.iloc[train].values)
+        
         if scoring == "neg_log_loss":
             prob = fit.predict_proba(X.iloc[test,:])
             _score = -log_loss(y_true = y.iloc[test], #in sklearn the formula already update to negative
@@ -153,7 +160,7 @@ def cv_score(
                                sample_weight = sample_weight.iloc[test],
                                labels = classifier.classes_)
         else:
-            pred = fit.predict(X.iloc[test, :])
+            pred = fit.predict(X.iloc[test,:])
             _score = accuracy_score(y_true = y.iloc[test],
                                     y_pred = pred,
                                     sample_weight = sample_weight.iloc[test].values)
