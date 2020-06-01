@@ -1,4 +1,3 @@
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -76,12 +75,12 @@ def mdi(fitted_model: ClassifierMixin,
 def mda(classifier: ClassifierMixin,
            X: pd.DataFrame,
            y: pd.DataFrame,
-           cv_gen = None,
-           n_splits: int,
            events: pd.DataFrame,
-           pct_embargo: float,
+           cv_gen = None,
+           n_splits: int = 10,
+           pct_embargo: float = .0,
            sample_weight = None,
-           scoring = "neg_log_loss",
+           scoring: str = "neg_log_loss",
            random_state=None):
     """
     Advances in Financial Machine Learning, Snippet 8.3, page 116-117.
@@ -172,12 +171,12 @@ def mda(classifier: ClassifierMixin,
                                                               labels=classifier.classes_)
             else:
                 pred = fit.predict(X1_)
-                features_metrics_values.loc[i, j] = scoring(y1,
-                                                            pred,
-                                                            sample_weight=w1.values)
+                features_metrics_values.loc[i, j] = accuracy_score(y1,
+                                                                   pred,
+                                                                   sample_weight=w1.values)
 
     importance = (-features_metrics_values).add(fold_metrics_values, axis=0)
-    if scoring == log_loss:
+    if scoring == "neg_log_loss":
         importance = importance / -features_metrics_values
     else:
         importance = importance / (1.0 - features_metrics_values).replace(0, np.nan)
@@ -191,8 +190,8 @@ def sfi(classifier: ClassifierMixin,
         X: pd.DataFrame,
         y: pd.DataFrame,
         cv_gen: BaseCrossValidator,
-        sample_weight=None,
-        scoring="neg_log_loss"):
+        scoring="neg_log_loss",
+        sample_weight=None,):
     """
     Advances in Financial Machine Learning, Snippet 8.4, page 118.
     Implementation of SFI
@@ -240,7 +239,11 @@ def sfi(classifier: ClassifierMixin,
     return importance
 
 
-def plot_feat_imp(importance_df, oob_score, oos_score, save_fig=False, output_path=None):
+def plot_feat_imp(importance_df: pd.DataFrame,
+                  oob_score: float,
+                  oos_score: float,
+                  output_path = None,
+                  save_fig: bool = False):
     """
     Advances in Financial Machine Learning, Snippet 8.10, page 124.
     Feature importance plotting function.
