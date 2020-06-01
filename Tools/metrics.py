@@ -240,7 +240,7 @@ def sfi(classifier: ClassifierMixin,
     return importance
 
 
-def plot_feature_importance(importance_df, oob_score, oos_score, save_fig=False, output_path=None):
+def plot_feat_imp(importance_df, oob_score, oos_score, save_fig=False, output_path=None):
     """
     Advances in Financial Machine Learning, Snippet 8.10, page 124.
     Feature importance plotting function.
