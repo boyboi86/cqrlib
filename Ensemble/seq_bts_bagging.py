@@ -122,6 +122,8 @@ def _parallel_build_estimators(n_estimators, ensemble, X, y, idx_Mat, sample_wei
  
 #================================================================================           
 #added loop here to keep sample size for seq_bts consistant with Training data
+# warning! the below will end up without replacement. Hence it is more like pasting and not bagging
+# if you have large dataset, it will not be a problem
 
         if max(indices) > n_samples:
             if np.isin(indices, n_samples - 1).any():
@@ -148,6 +150,7 @@ def _parallel_build_estimators(n_estimators, ensemble, X, y, idx_Mat, sample_wei
                 
 #================================================================================
 #added some func here to prevent repeat, since we are using n_sample as an estimate
+#samples drawn will not be replace, in fact sample size will start to fall
                          
                 if ensemble.ctr_ >= 2:                                               
                     sample_counts[-1] = 0
