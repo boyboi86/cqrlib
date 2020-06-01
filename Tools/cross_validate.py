@@ -111,7 +111,7 @@ def cv_score(
         cv_gen: BaseCrossValidator = None,
         sample_weight: np.ndarray = None,
         scoring: str = "neg_log_loss",
-        shuffle_after_split: bool = True):
+        shuffle_after_split: bool = False):
 
     """
     Advances in Financial Machine Learning, Snippet 7.4, page 110.
