@@ -3,12 +3,15 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-from sklearn.metrics import log_loss
+from sklearn.metrics import log_loss, accuracy_score
 from sklearn.base import ClassifierMixin, ClusterMixin
+from sklearn.model_selection import BaseCrossValidator
 
-from research.Tools.cross_validate import cv_score
+from research.Tools.cross_validate import cv_score, PurgedKFold
 
-def mdi(fitted_model: ClassifierMixin, train_features: pd.DataFrame, clustered_subsets: ClusterMixin = None):
+def mdi(fitted_model: ClassifierMixin,
+        train_features: pd.DataFrame,
+        clustered_subsets: ClusterMixin = None):
     """
     Advances in Financial Machine Learning, Snippet 8.2, page 115.
     MDI Feature importance
@@ -55,7 +58,7 @@ def mdi(fitted_model: ClassifierMixin, train_features: pd.DataFrame, clustered_s
 
     if clustered_subsets is not None:
         # Getting subset wise importance
-        importance = pd.DataFrame(index=train_features, columns=['mean', 'std'])
+        importance = pd.DataFrame(index = train_features.columns, columns=['mean', 'std'])
         for subset in clustered_subsets: # Iterating over each cluster
             subset_feat_imp = feature_imp_df[subset].sum(axis=1)
             # Importance of each feature within a subsets is equal to the importance of that subset
@@ -70,8 +73,16 @@ def mdi(fitted_model: ClassifierMixin, train_features: pd.DataFrame, clustered_s
     return importance
 
 
-def mean_decrease_accuracy(model, X, y, cv_gen, clustered_subsets=None, sample_weight_train=None,
-                           sample_weight_score=None, scoring=log_loss, random_state=42):
+def mda(classifier: ClassifierMixin,
+           X: pd.DataFrame,
+           y: pd.DataFrame,
+           cv_gen = None,
+           n_splits: int,
+           events: pd.DataFrame,
+           pct_embargo: float,
+           sample_weight = None,
+           scoring = "neg_log_loss",
+           random_state=None):
     """
     Advances in Financial Machine Learning, Snippet 8.3, page 116-117.
     MDA Feature Importance
@@ -111,44 +122,59 @@ def mean_decrease_accuracy(model, X, y, cv_gen, clustered_subsets=None, sample_w
     :param random_state: (int) Random seed for shuffling the features.
     :return: (pd.DataFrame): Mean and standard deviation of feature importance.
     """
+    if scoring not in ["neg_log_loss", "accuracy"]:
+        scoring = "neg_log_loss" #replace raise ErrorValue
+        
+    if random_state is None:
+        random_state = classifier.random_state
 
-    if sample_weight_train is None:
-        sample_weight_train = np.ones((X.shape[0],))
-
-    if sample_weight_score is None:
-        sample_weight_score = np.ones((X.shape[0],))
+    if sample_weight is None:
+        sample_weight_ = np.ones(X.shape[0])
+        sample_weight = pd.Series(sample_weight_, index = X.index)# if not weight assigned equal weight given
+        
+    if cv_gen is None:
+        cv_gen = PurgedKFold(n_splits = n_splits, 
+                             events = events,
+                             pct_embargo = pct_embargo)
 
     fold_metrics_values, features_metrics_values = pd.Series(), pd.DataFrame(columns=X.columns)
     # Generating a numpy random state object for the given random_state
     rs_obj = np.random.RandomState(seed=random_state)
     # Clustered feature subsets will be used for CFI if clustered_subsets exists else will operate on the single column as MDA
-    feature_sets = clustered_subsets if clustered_subsets else [[x] for x in X.columns]
+    
     for i, (train, test) in enumerate(cv_gen.split(X=X)):
-        fit = model.fit(X=X.iloc[train, :], y=y.iloc[train], sample_weight=sample_weight_train[train])
-        pred = fit.predict(X.iloc[test, :])
+        X0, y0, w0 = X.iloc[train, :], y.iloc[train], sample_weight.iloc[train]
+        X1, y1, w1 = X.iloc[test, :], y.iloc[test], sample_weight.iloc[test]
+        fit = classifier.fit(X = X0, y = y0, sample_weight = w0.values)
 
         # Get overall metrics value on out-of-sample fold
-        if scoring == log_loss:
-            prob = fit.predict_proba(X.iloc[test, :])
-            fold_metrics_values.loc[i] = -scoring(y.iloc[test], prob, sample_weight=sample_weight_score[test],
-                                                  labels=model.classes_)
+        if scoring == "neg_log_loss":
+            prob = fit.predict_proba(X1)
+            fold_metrics_values.loc[i] = -log_loss(y1,
+                                                   prob,
+                                                   sample_weight=w1.values,
+                                                   labels=classifier.classes_)
         else:
-            fold_metrics_values.loc[i] = scoring(y.iloc[test], pred, sample_weight=sample_weight_score[test])
+            pred = fit.predict(X1)
+            fold_metrics_values.loc[i] = accuracy_score(y1,
+                                                        pred,
+                                                        sample_weight=w1.values)
 
         # Get feature specific metric on out-of-sample fold
-        for j in feature_sets:
-            X1_ = X.iloc[test, :].copy(deep=True)
-            for j_i in j:
-                rs_obj.shuffle(X1_[j_i].values)  # Permutation of a single column for MDA or through the whole subset for CFI
-            if scoring == log_loss:
+        for j in X.columns:
+            X1_ = X1.copy(deep=True)
+            rs_obj.shuffle(X1_[j].values)  # Permutation of a single column for MDA shuffle values within column
+            if scoring == "neg_log_loss":
                 prob = fit.predict_proba(X1_)
-                features_metrics_values.loc[i, j] = -scoring(y.iloc[test], prob,
-                                                             sample_weight=sample_weight_score[test],
-                                                             labels=model.classes_)
+                features_metrics_values.loc[i, j] = -log_loss(y1,
+                                                              prob,
+                                                              sample_weight=w1.values,
+                                                              labels=classifier.classes_)
             else:
                 pred = fit.predict(X1_)
-                features_metrics_values.loc[i, j] = scoring(y.iloc[test], pred,
-                                                            sample_weight=sample_weight_score[test])
+                features_metrics_values.loc[i, j] = scoring(y1,
+                                                            pred,
+                                                            sample_weight=w1.values)
 
     importance = (-features_metrics_values).add(fold_metrics_values, axis=0)
     if scoring == log_loss:
@@ -158,10 +184,15 @@ def mean_decrease_accuracy(model, X, y, cv_gen, clustered_subsets=None, sample_w
     importance = pd.concat({'mean': importance.mean(), 'std': importance.std() * importance.shape[0] ** -.5}, axis=1)
     importance.replace([-np.inf, np.nan], 0, inplace=True)  # Replace infinite values
 
-    return importance
+    return importance, fold_metrics_values.mean()
 
 
-def single_feature_importance(clf, X, y, cv_gen, sample_weight=None, scoring="neg_log_loss"):
+def sfi(classifier: ClassifierMixin,
+        X: pd.DataFrame,
+        y: pd.DataFrame,
+        cv_gen: BaseCrossValidator,
+        sample_weight=None,
+        scoring="neg_log_loss"):
     """
     Advances in Financial Machine Learning, Snippet 8.4, page 118.
     Implementation of SFI
@@ -195,14 +226,18 @@ def single_feature_importance(clf, X, y, cv_gen, sample_weight=None, scoring="ne
         sample_weight_ = np.ones(X.shape[0])
         sample_weight = pd.Series(sample_weight_, index = X.index)# if not weight assigned equal weight given
 
-    imp = pd.DataFrame(columns=['mean', 'std'])
+    importance = pd.DataFrame(columns=['mean', 'std'])
     for feat in feature_names:
-        feat_cross_val_scores = cv_score(clf, X=X[[feat]], y=y, sample_weight = sample_weight,
-                                                   scoring=scoring, cv_gen=cv_gen)
-        imp.loc[feat, 'mean'] = feat_cross_val_scores.mean()
-        # pylint: disable=unsubscriptable-object
-        imp.loc[feat, 'std'] = feat_cross_val_scores.std() * feat_cross_val_scores.shape[0] ** -.5
-    return imp
+        _cv_scores = cv_score(classifier = classifier,
+                              X=X[[feat]],
+                              y=y,
+                              sample_weight = sample_weight,
+                              scoring=scoring,
+                              cv_gen=cv_gen)
+        
+        importance.loc[feat, 'mean'] = _cv_scores.mean()
+        importance.loc[feat, 'std'] = _cv_scores.std() * _cv_scores.shape[0] ** -.5
+    return importance
 
 
 def plot_feature_importance(importance_df, oob_score, oos_score, save_fig=False, output_path=None):

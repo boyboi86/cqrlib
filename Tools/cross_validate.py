@@ -11,7 +11,6 @@ from sklearn.base import ClassifierMixin
 from sklearn.model_selection import BaseCrossValidator
 from sklearn.utils import shuffle
 
-
 def train_times(events: pd.DataFrame, test_times: pd.Series) -> pd.Series:
     # pylint: disable=invalid-name
     """
