@@ -8,6 +8,11 @@ from sklearn.model_selection import BaseCrossValidator
 
 from research.Tools.cross_validate import cv_score, PurgedKFold
 
+def sample_weight_generator(X):
+    sample_weight_ = np.ones(X.shape[0])
+    sample_weight = pd.Series(sample_weight_, index = X.index).div(X.shape[0]) # if not weight assigned equal weight given
+    return sample_weight
+
 def mdi(fitted_model: ClassifierMixin,
         train_features: pd.DataFrame,
         clustered_subsets: ClusterMixin = None):
@@ -49,7 +54,7 @@ def mdi(fitted_model: ClassifierMixin,
     # Feature importance based on in-sample (IS) mean impurity reduction
     feature_imp_df = {i: tree.feature_importances_ for i, tree in enumerate(fitted_model.estimators_)}
     feature_imp_df = pd.DataFrame.from_dict(feature_imp_df, orient='index')
-    feature_imp_df.columns = train_features.columns
+    feature_imp_df.columns = train_features
 
     # Make sure that features with zero importance are not averaged, since the only reason for a 0 is that the feature
     # was not randomly chosen. Replace those values with np.nan
@@ -74,8 +79,8 @@ def mdi(fitted_model: ClassifierMixin,
 
 def mda(classifier: ClassifierMixin,
            X: pd.DataFrame,
-           y: pd.DataFrame,
-           events: pd.DataFrame,
+           y: pd.Series,
+           events: pd.DataFrame = None,
            cv_gen = None,
            n_splits: int = 10,
            pct_embargo: float = .0,
@@ -128,8 +133,7 @@ def mda(classifier: ClassifierMixin,
         random_state = classifier.random_state
 
     if sample_weight is None:
-        sample_weight_ = np.ones(X.shape[0])
-        sample_weight = pd.Series(sample_weight_, index = X.index)# if not weight assigned equal weight given
+        sample_weight = sample_weight_generator(X = X)
         
     if cv_gen is None:
         cv_gen = PurgedKFold(n_splits = n_splits, 
@@ -137,11 +141,10 @@ def mda(classifier: ClassifierMixin,
                              pct_embargo = pct_embargo)
 
     fold_metrics_values, features_metrics_values = pd.Series(), pd.DataFrame(columns=X.columns)
-    # Generating a numpy random state object for the given random_state
-    rs_obj = np.random.RandomState(seed=random_state)
+
     # Clustered feature subsets will be used for CFI if clustered_subsets exists else will operate on the single column as MDA
     
-    for i, (train, test) in enumerate(cv_gen.split(X=X)):
+    for i, (train, test) in enumerate(cv_gen.split(X=X, y=y)):
         X0, y0, w0 = X.iloc[train, :], y.iloc[train], sample_weight.iloc[train]
         X1, y1, w1 = X.iloc[test, :], y.iloc[test], sample_weight.iloc[test]
         fit = classifier.fit(X = X0, y = y0, sample_weight = w0.values)
@@ -162,7 +165,7 @@ def mda(classifier: ClassifierMixin,
         # Get feature specific metric on out-of-sample fold
         for j in X.columns:
             X1_ = X1.copy(deep=True)
-            rs_obj.shuffle(X1_[j].values)  # Permutation of a single column for MDA shuffle values within column
+            np.random.RandomState(seed=random_state).shuffle(X1_[j].values)  # Permutation of a single column for MDA shuffle values within column
             if scoring == "neg_log_loss":
                 prob = fit.predict_proba(X1_)
                 features_metrics_values.loc[i, j] = -log_loss(y1,
@@ -188,10 +191,10 @@ def mda(classifier: ClassifierMixin,
 
 def sfi(classifier: ClassifierMixin,
         X: pd.DataFrame,
-        y: pd.DataFrame,
+        y: pd.Series,
         cv_gen: BaseCrossValidator,
-        scoring="neg_log_loss",
-        sample_weight=None,):
+        scoring: str ="neg_log_loss",
+        sample_weight=None):
     """
     Advances in Financial Machine Learning, Snippet 8.4, page 118.
     Implementation of SFI
@@ -220,10 +223,16 @@ def sfi(classifier: ClassifierMixin,
     :param scoring: (function): Scoring function used to determine importance.
     :return: (pd.DataFrame): Mean and standard deviation of feature importance.
     """
-    feature_names = X.columns
+    if isinstance(X, pd.Index):
+        feature_names = X
+    else:
+        try:
+            feature_names = X.columns
+        except:
+            raise ValueError("X params require features columns index input")
+    
     if sample_weight is None:
-        sample_weight_ = np.ones(X.shape[0])
-        sample_weight = pd.Series(sample_weight_, index = X.index)# if not weight assigned equal weight given
+        sample_weight = sample_weight_generator(X = X)
 
     importance = pd.DataFrame(columns=['mean', 'std'])
     for feat in feature_names:
@@ -238,10 +247,62 @@ def sfi(classifier: ClassifierMixin,
         importance.loc[feat, 'std'] = _cv_scores.std() * _cv_scores.shape[0] ** -.5
     return importance
 
+def mp_sfi(classifier: ClassifierMixin,
+            feature_names: pd.Index,
+            X: pd.DataFrame,
+            y: pd.Series,
+            cv_gen: BaseCrossValidator,
+            scoring: str ="neg_log_loss",
+            sample_weight=None):
+    """
+    Advances in Financial Machine Learning, Snippet 8.4, page 118.
+    Implementation of SFI
+    Substitution effects can lead us to discard important features that happen to be redundant. This is not generally a
+    problem in the context of prediction, but it could lead us to wrong conclusions when we are trying to understand,
+    improve, or simplify a model. For this reason, the following single feature importance method can be a good
+    complement to MDI and MDA.
+    Single feature importance (SFI) is a cross-section predictive-importance (out-of- sample) method. It computes the
+    OOS performance score of each feature in isolation. A few considerations:
+    * This method can be applied to any classifier, not only tree-based classifiers.
+    * SFI is not limited to accuracy as the sole performance score.
+    * Unlike MDI and MDA, no substitution effects take place, since only one feature is taken into consideration at a time.
+    * Like MDA, it can conclude that all features are unimportant, because performance is evaluated via OOS CV.
+    The main limitation of SFI is that a classifier with two features can perform better than the bagging of two
+    single-feature classifiers. For example, (1) feature B may be useful only in combination with feature A;
+    or (2) feature B may be useful in explaining the splits from feature A, even if feature B alone is inaccurate.
+    In other words, joint effects and hierarchical importance are lost in SFI. One alternative would be to compute the
+    OOS performance score from subsets of features, but that calculation will become intractable as more features are
+    considered.
+    :param clf: (sklearn.Classifier): Any sklearn classifier.
+    :param X: (pd.DataFrame): Train set features.
+    :param y: (pd.DataFrame, np.array): Train set labels.
+    :param cv_gen: (cross_validation.PurgedKFold): Cross-validation object.
+    :param sample_weight_train: (np.array) Sample weights used to train the model for each record in the dataset.
+    :param sample_weight_score: (np.array) Sample weights used to evaluate the model quality.
+    :param scoring: (function): Scoring function used to determine importance.
+    :return: (pd.DataFrame): Mean and standard deviation of feature importance.
+    """
+    
+    if sample_weight is None:
+        sample_weight = sample_weight_generator(X = X)
+    
+    importance = pd.DataFrame(columns=['mean', 'std'])
+    for feat in feature_names:
+        _cv_scores = cv_score(classifier = classifier,
+                              X=X[[feat]],
+                              y=y,
+                              sample_weight = sample_weight,
+                              scoring=scoring,
+                              cv_gen=cv_gen)
+        
+        importance.loc[feat, 'mean'] = _cv_scores.mean()
+        importance.loc[feat, 'std'] = _cv_scores.std() * _cv_scores.shape[0] ** -.5
+    return importance
 
-def plot_feat_imp(importance_df: pd.DataFrame,
+def plot_feat_imp(feat_imp_df: pd.DataFrame,
                   oob_score: float,
                   oos_score: float,
+                  method: str,
                   output_path = None,
                   save_fig: bool = False):
     """
@@ -255,10 +316,14 @@ def plot_feat_imp(importance_df: pd.DataFrame,
     :param output_path: (str): If save_fig is True, path where figure should be saved.
     """
     # Plot mean imp bars with std
-    plt.figure(figsize=(10, importance_df.shape[0] / 5))
-    importance_df.sort_values('mean', ascending=True, inplace=True)
-    importance_df['mean'].plot(kind='barh', color='b', alpha=0.25, xerr=importance_df['std'], error_kw={'ecolor': 'r'})
-    plt.title('Feature importance. OOB Score:{}; OOS score:{}'.format(round(oob_score, 4), round(oos_score, 4)))
+    plt.figure(figsize=(10, feat_imp_df.shape[0] / 5))
+    feat_imp_df.sort_values('mean', ascending=True, inplace=True)
+    ax = feat_imp_df['mean'].plot(kind='barh', color='b', alpha=0.25, xerr=feat_imp_df['std'], error_kw={'ecolor': 'r'})
+    
+    if method == 'MDI':
+        plt.axvline(1./feat_imp_df.shape[0], lw = 1, c = 'r', ls = '--')
+    #ax.set_yticklabels(labels = ax.get_yaxis(), va='center')   will try to correct it later
+    plt.title('tag = {0} | OOB Score:{1:.6f}| OOS score:{2:.6f}'.format(method, oob_score, oos_score))
 
     if save_fig is True:
         plt.savefig(output_path)
