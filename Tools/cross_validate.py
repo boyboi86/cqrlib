@@ -11,6 +11,12 @@ from sklearn.base import ClassifierMixin
 from sklearn.model_selection import BaseCrossValidator
 from sklearn.utils import shuffle
 
+
+def sample_weight_generator(X):
+    sample_weight_ = np.ones(X.shape[0])
+    sample_weight = pd.Series(sample_weight_, index = X.index).div(X.shape[0]) # if not weight assigned equal weight given
+    return sample_weight
+
 def train_times(events: pd.DataFrame, test_times: pd.Series) -> pd.Series:
     # pylint: disable=invalid-name
     """
@@ -33,7 +39,7 @@ def train_times(events: pd.DataFrame, test_times: pd.Series) -> pd.Series:
         train = train.drop(df0.union(df1).union(df2))
     return train
 
-def embargo_times(times, pct_embargo: float = .0):
+def embargo_times(times, pct_embargo: float = .01):
     step = int(times.shape[0] * pct_embargo)
     if step == 0:
         _embargo = pd.Series(times, index = times)
@@ -57,7 +63,7 @@ class PurgedKFold(KFold):
     def __init__(self,
                  n_splits: int = 5,
                  events: pd.Series = None,
-                 pct_embargo: float = 0.):
+                 pct_embargo: float = .01):
 
         if not isinstance(events, pd.Series):
             try:
@@ -106,8 +112,8 @@ def cv_score(
         classifier: ClassifierMixin,
         X: pd.DataFrame,
         y: pd.Series,
-        events: pd.DataFrame = None,
-        pct_embargo: float = .0,
+        events: pd.Series = None,
+        pct_embargo: float = .01,
         cv_gen: BaseCrossValidator = None,
         sample_weight: np.ndarray = None,
         scoring: str = "neg_log_loss",
@@ -138,8 +144,7 @@ def cv_score(
                              pct_embargo = pct_embargo)
         
     if sample_weight is None:
-        sample_weight_ = np.ones(X.shape[0])
-        sample_weight = pd.Series(sample_weight_, index = X.index)# if not weight assigned equal weight given
+        sample_weight = sample_weight_generator(X = X) # if not weight assigned equal weight given
         
     scores = []
     for train, test in cv_gen.split(X=X, y=y): #we set y = None as default so we can leave it as it is
