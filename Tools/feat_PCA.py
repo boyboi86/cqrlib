@@ -13,7 +13,7 @@ def _eigen_vector(dot_matrix, var_threshold):
     :return: (pd.Series, pd.DataFrame): Eigenvalues, Eigenvectors.
     """
     # Compute eigen_vec from dot prod matrix, reduce dimension
-    eigen_val, eigen_vec = np.linalg.eigh(dot_matrix)
+    eigen_val, eigen_vec = np.linalg.eigh(dot_matrix) #Hermitian
     idx = eigen_val.argsort()[::-1]  # Arguments for sorting eigen_val desc
     eigen_val, eigen_vec = eigen_val[idx], eigen_vec[:, idx]
 
@@ -29,16 +29,7 @@ def _eigen_vector(dot_matrix, var_threshold):
     return eigen_val, eigen_vec
 
 
-def _standardize_df(data_frame):
-    """
-    Helper function which divides df by std and extracts mean.
-    :param data_frame: (pd.DataFrame): Dataframe to standardize
-    :return: (pd.DataFrame): Standardized dataframe
-    """
-    return data_frame.sub(data_frame.mean(), axis=1).div(data_frame.std(), axis=1)
-
-
-def orthogonal_feat(feature_df, var_threshold: float =.95):
+def o_feat(feat_df, var_threshold: float =.95):
     """
     Advances in Financial Machine Learning, Snippet 8.5, page 119.
     Computation of Orthogonal Features.
@@ -48,12 +39,12 @@ def orthogonal_feat(feature_df, var_threshold: float =.95):
     :return: (pd.DataFrame): Compressed PCA features which explain %variance_thresh of variance.
     """
     # Given a dataframe of features, compute orthogonal features
-    feature_df_standard = _standardize_df(feature_df)  # Standardize
-    dot_matrix = pd.DataFrame(np.dot(feature_df_standard.T, feature_df_standard),
-                              index = feature_df.columns,
-                              columns = feature_df.columns)
+    feat_df = feat_df.sub(feat_df.mean(), axis=1).div(feat_df.std(), axis=1)  # Standardize
+    dot_matrix = pd.DataFrame(np.dot(feat_df.T, feat_df),
+                              index = feat_df.columns,
+                              columns = feat_df.columns)
     _, eigen_vec = _eigen_vector(dot_matrix, var_threshold) #we only need vector for transformation
-    _pca_feat = np.dot(feature_df_standard, eigen_vec)
+    _pca_feat = np.dot(feat_df, eigen_vec)
     return _pca_feat
 
 
@@ -68,7 +59,7 @@ def _pca_rank_weighted_kendall_tau(feature_imp, pca_rank):
     return weightedtau(feature_imp, pca_rank ** -1.0)
 
 
-def feat_pca(feature_df, feature_importance, var_threshold: float = 0.95):
+def feat_pca(feat_df: pd.DataFrame, feat_imp, var_threshold: float = 0.95):
     """
     Performs correlation analysis between feature importance (MDI for example, supervised) and PCA eigenvalues
     (unsupervised).
@@ -78,9 +69,9 @@ def feat_pca(feature_df, feature_importance, var_threshold: float = 0.95):
     :param variance_thresh: (float): Percentage % of overall variance which compressed vectors should explain in PCA compression.
     :return: (dict): Dictionary with kendall, spearman, pearson and weighted_kendall correlations and p_values.
     """
-    feature_df_standard = _standardize_df(feature_df)  # Standardize
-    dot = pd.DataFrame(np.dot(feature_df_standard.T, feature_df_standard), index=feature_df.columns,
-                       columns=feature_df.columns)
+    feat_df = feat_df.sub(feat_df.mean(), axis=1).div(feat_df.std(), axis=1)# Standardize
+    dot = pd.DataFrame(np.dot(feat_df.T, feat_df), index=feat_df.columns,
+                       columns=feat_df.columns)
     eigen_val, eigen_vec = _eigen_vector(dot, var_threshold)
 
     # Compute correlations between eigen values for each eigen vector vs mdi importance
@@ -90,7 +81,7 @@ def feat_pca(feature_df, feature_importance, var_threshold: float = 0.95):
         all_eigen_values.extend(abs(eigen_vec[vec].values * eigen_val[vec]))
 
     # We need to repeat importance array # of eigen vector times to generate correlation for all_eigen_values
-    repeated_importance_array = np.tile(feature_importance['mean'].values, len(eigen_vec.columns))
+    repeated_importance_array = np.tile(feat_imp['mean'].values, len(eigen_vec.columns))
 
     for corr_type, function in zip(corr_dict.keys(), [pearsonr, spearmanr, kendalltau]):
         corr_coef = function(repeated_importance_array, all_eigen_values)
@@ -99,6 +90,6 @@ def feat_pca(feature_df, feature_importance, var_threshold: float = 0.95):
     # Get Rank based weighted Tau correlation
     feat_pca_rank = (eigen_val * eigen_vec).abs().sum(axis=1).rank(
         ascending=False)  # Sum of absolute values across all eigen vectors
-    corr_dict['Weighted_Kendall_Rank'] = _pca_rank_weighted_kendall_tau(feature_importance['mean'].values,
-                                                                           feat_pca_rank.values)
+    corr_dict['Weighted_Kendall_Rank'] = _pca_rank_weighted_kendall_tau(feat_imp['mean'].values,
+                                                                           pca_rank = feat_pca_rank.values)
     return corr_dict
