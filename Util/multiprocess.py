@@ -89,7 +89,7 @@ def lin_parts(num_atoms, num_threads):
     """
     # Partition of atoms with a single loop
     parts = np.linspace(0, num_atoms, min(num_threads, num_atoms) + 1)
-    parts = np.ceil(parts).astype(int)
+    parts = np.ceil(parts).astype(int) #if you use astype int, some func will never run. but int can have sequences
     return parts
 
 
