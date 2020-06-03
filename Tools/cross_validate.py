@@ -115,7 +115,7 @@ def cv_score(
         events: pd.Series = None,
         pct_embargo: float = .01,
         cv_gen: BaseCrossValidator = None,
-        sample_weight: np.ndarray = None,
+        sample_weight: pd.Series = None,
         scoring: str = "neg_log_loss",
         shuffle_after_split: bool = False):
 
@@ -152,7 +152,7 @@ def cv_score(
         if shuffle_after_split is True:        
             train = shuffle(train, 
                             random_state = classifier.random_state) #added for randomness
-#==============================================================
+        
         fit = classifier.fit(X = X.iloc[train, :],
                              y = y.iloc[train],
                              sample_weight = sample_weight.iloc[train].values)
