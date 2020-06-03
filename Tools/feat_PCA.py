@@ -3,7 +3,7 @@ import numpy as np
 from scipy.stats import weightedtau, kendalltau, spearmanr, pearsonr
 
 
-def _eigen_vector(dot_matrix, var_threshold):
+def _eigen_vector(dot_matrix: pd.DataFrame, var_threshold: float):
     """
     Advances in Financial Machine Learning, Snippet 8.5, page 119.
     Computation of Orthogonal Features
@@ -29,7 +29,7 @@ def _eigen_vector(dot_matrix, var_threshold):
     return eigen_val, eigen_vec
 
 
-def o_feat(feat_df, var_threshold: float =.95):
+def o_feat(feat_df: pd.DataFrame, var_threshold: float =.95):
     """
     Advances in Financial Machine Learning, Snippet 8.5, page 119.
     Computation of Orthogonal Features.
