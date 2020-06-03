@@ -6,11 +6,15 @@ from sklearn.metrics import log_loss, accuracy_score
 from sklearn.base import ClassifierMixin, ClusterMixin
 from sklearn.model_selection import BaseCrossValidator
 
+from sklearn.ensemble import BaggingClassifier
+from sklearn.tree import DecisionTreeClassifier
+
 from research.Tools.cross_validate import cv_score, PurgedKFold
+from research.Util.multiprocess import mp_pandas_obj
 
 def sample_weight_generator(X):
     sample_weight_ = np.ones(X.shape[0])
-    sample_weight = pd.Series(sample_weight_, index = X.index).div(X.shape[0]) # if not weight assigned equal weight given
+    sample_weight = pd.Series(sample_weight_, index = X.index).div(X.shape[0]) # if not weight assigned equal prob given
     return sample_weight
 
 def mdi(fitted_model: ClassifierMixin,
@@ -322,10 +326,103 @@ def plot_feat_imp(feat_imp_df: pd.DataFrame,
     
     if method == 'MDI':
         plt.axvline(1./feat_imp_df.shape[0], lw = 1, c = 'r', ls = '--')
-    #ax.set_yticklabels(labels = ax.get_yaxis(), va='center')   will try to correct it later
+    ax.get_yaxis().set_visible(False)
+    for i,j in zip(ax.patches, feat_imp_df.index):
+        ax.text(i.get_width()/2,
+                i.get_y() + i.get_height()/2,
+                j,
+                ha="center",
+                va="center",
+                c = "black")
     plt.title('tag = {0} | OOB Score:{1:.6f}| OOS score:{2:.6f}'.format(method, oob_score, oos_score))
 
     if save_fig is True:
         plt.savefig(output_path)
     else:
         plt.show()
+        
+def _feat_imp_analysis(classifier,
+                      X: pd.DataFrame,
+                      y: pd.Series,
+                      method: str = 'SFI',
+                      events: pd.Series = None,
+                      pct_embargo = 0.01,
+                      sample_weight = None,
+                      n_splits: int = 10,
+                      min_weight_fraction_leaf = 0.0,
+                      n_jobs: int = 1,
+                      scoring: str = "accuracy"):
+    
+    if classifier is None:
+        clf = DecisionTreeClassifier(criterion = 'entropy',
+                                     max_features = int(1), # has to be 1 with dtype integer
+                                     class_weight = 'balanced',
+                                     min_weight_fraction_leaf = min_weight_fraction_leaf)
+        
+        classifier = BaggingClassifier(base_estimator=clf,
+                                        n_estimators=1000,
+                                        max_features=1.0, #if this is not a float, your max feature for all will only be 1
+                                        max_samples=1.0,
+                                        oob_score=True,
+                                        n_jobs=n_jobs)
+    
+    if events is None:
+        try:
+            events = y.t1 #if you are using "yield" instead of "return", avoid try/ except/ finally
+        except:
+            raise ValueError("params events t1 required")
+        
+    fit_model = classifier.fit(X, y['bin'], sample_weight=sample_weight)
+    oob_score = fit_model.oob_score_
+
+    cv_gen = PurgedKFold(n_splits=n_splits, events=events, pct_embargo = pct_embargo)
+    oos_score = cv_score(classifier, X, y['bin'], cv_gen=cv_gen, scoring=scoring).mean()
+
+    if method == 'MDI':
+        imp = mdi(fitted_model = fit_model,
+                     train_features = X.columns)
+        
+    elif method == 'MDA':
+        imp, oos_score = mda(classifier = classifier,
+                                 X = X,
+                                 y = y['bin'],
+                                 events = events,
+                                 cv_gen = cv_gen,
+                                 pct_embargo = pct_embargo,
+                                 scoring=scoring,
+                                 sample_weight=sample_weight)
+        
+    elif method == 'SFI':
+        n_jobs_ = classifier.n_jobs 
+        classifier.n_jobs = 1 # reset to 1, use mp_pandas_obj instead
+        imp = mp_pandas_obj(mp_sfi, ('feature_names', X.columns), 
+                             num_threads = n_jobs_, 
+                             classifier = classifier, 
+                             X = X, 
+                             y = y['bin'], 
+                             cv_gen = cv_gen, 
+                             scoring = scoring,
+                             sample_weight=sample_weight)
+        
+    return imp, oob_score, oos_score
+
+
+def feat_imp_analysis(classifier = None,
+                      X = None,
+                      y = None,
+                      sample_weight = None,
+                      methods=['MDI', 'MDA', 'SFI'],
+                      output_path: str = None):
+    for method in methods:
+        feat_imp_score, oob_score, oos_score = _feat_imp_analysis(classifier = classifier,
+                                                                   X=X,
+                                                                   y=y,
+                                                                   method = method,
+                                                                   sample_weight = sample_weight)
+
+        plot_feat_imp(feat_imp_df = feat_imp_score, 
+                     oob_score=oob_score, 
+                     oos_score=oos_score,
+                     method = method,
+                     save_fig=False, 
+                     output_path=output_path)
