@@ -16,7 +16,6 @@ def _eigen_vector(dot_matrix: pd.DataFrame, var_threshold: float):
     eigen_val, eigen_vec = np.linalg.eigh(dot_matrix) #Hermitian
     idx = eigen_val.argsort()[::-1]  # Arguments for sorting eigen_val desc
     eigen_val, eigen_vec = eigen_val[idx], eigen_vec[:, idx]
-
     # 2) Only positive eigen_vals
     eigen_val = pd.Series(eigen_val, index=['PC_' + str(i + 1) for i in range(eigen_val.shape[0])])
     eigen_vec = pd.DataFrame(eigen_vec, index=dot_matrix.index, columns=eigen_val.index)
