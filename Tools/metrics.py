@@ -351,11 +351,16 @@ def _feat_imp_analysis(classifier,
                       n_splits: int = 10,
                       min_weight_fraction_leaf = 0.0,
                       n_jobs: int = 1,
-                      scoring: str = "accuracy"):
+                      scoring: str = "accuracy",
+                      mask_effect: bool = False):
+    if mask_effect:
+        max_features = None
+    else:
+        max_features = int(1)
     
     if classifier is None:
         clf = DecisionTreeClassifier(criterion = 'entropy',
-                                     max_features = int(1), # has to be 1 with dtype integer
+                                     max_features = max_features, # has to be 1 with dtype integer
                                      class_weight = 'balanced',
                                      min_weight_fraction_leaf = min_weight_fraction_leaf)
         
@@ -393,7 +398,10 @@ def _feat_imp_analysis(classifier,
                                  sample_weight=sample_weight)
         
     elif method == 'SFI':
-        n_jobs_ = classifier.n_jobs 
+        if classifier.n_jobs <= 2:
+            n_jobs_ = 3
+        else:
+            n_jobs_ = classifier.n_jobs
         classifier.n_jobs = 1 # reset to 1, use mp_pandas_obj instead
         imp = mp_pandas_obj(mp_sfi, ('feature_names', X.columns), 
                              num_threads = n_jobs_, 
@@ -407,22 +415,37 @@ def _feat_imp_analysis(classifier,
     return imp, oob_score, oos_score
 
 
-def feat_imp_analysis(classifier = None,
-                      X = None,
-                      y = None,
-                      sample_weight = None,
-                      methods=['MDI', 'MDA', 'SFI'],
-                      output_path: str = None):
-    for method in methods:
+def feat_imp_analysis(classifier: ClassifierMixin = None,
+                      X: pd.DataFrame = None,
+                      y: pd.DataFrame = None,
+                      sample_weight: pd.Series = None,
+                      methods: list =['MDI', 'MDA', 'SFI'],
+                      events: pd.Series = None,
+                      pct_embargo: float = 0.01,
+                      n_splits: int = 10,
+                      min_weight_fraction_leaf: float = 0.0,
+                      n_jobs: int = 1,
+                      scoring: str = "accuracy",
+                      output_path: str = None,
+                      mask_effect = False):
+    
+    for _method in methods:
         feat_imp_score, oob_score, oos_score = _feat_imp_analysis(classifier = classifier,
                                                                    X=X,
                                                                    y=y,
-                                                                   method = method,
-                                                                   sample_weight = sample_weight)
+                                                                   sample_weight = sample_weight,
+                                                                   method = _method,
+                                                                   events = events,
+                                                                   pct_embargo = pct_embargo,
+                                                                   n_splits = n_splits,
+                                                                   min_weight_fraction_leaf = 0.0,
+                                                                   n_jobs = 1,
+                                                                   scoring = scoring,
+                                                                   mask_effect = mask_effect)
 
         plot_feat_imp(feat_imp_df = feat_imp_score, 
-                     oob_score=oob_score, 
-                     oos_score=oos_score,
-                     method = method,
-                     save_fig=False, 
-                     output_path=output_path)
+                         oob_score=oob_score, 
+                         oos_score=oos_score,
+                         method = _method,
+                         save_fig=False, 
+                         output_path=output_path)
