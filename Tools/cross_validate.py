@@ -6,9 +6,11 @@ import pandas as pd
 import numpy as np
 
 from sklearn.metrics import log_loss, accuracy_score
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, BaseCrossValidator, GridSearchCV, RandomizedSearchCV
 from sklearn.base import ClassifierMixin
-from sklearn.model_selection import BaseCrossValidator
+
+from sklearn.ensemble import BaggingClassifier
+from sklearn.pipeline import Pipeline
 from sklearn.utils import shuffle
 
 
@@ -149,10 +151,12 @@ def cv_score(
     scores = []
     for train, test in cv_gen.split(X=X, y=y): #we set y = None as default so we can leave it as it is
 #==============================================================
-        if shuffle_after_split is True:        
-            train = shuffle(train, 
-                            random_state = classifier.random_state) #added for randomness
         
+        if shuffle_after_split is True:        
+            test = shuffle(test, 
+                            random_state = classifier.random_state) #added for randomness
+            
+ #==============================================================       
         fit = classifier.fit(X = X.iloc[train, :],
                              y = y.iloc[train],
                              sample_weight = sample_weight.iloc[train].values)
@@ -170,3 +174,59 @@ def cv_score(
                                     sample_weight = sample_weight.iloc[test].values)
         scores.append(_score)
     return np.array(scores)
+
+
+class Pipe_line(Pipeline):
+    def fit(self, X, y, sample_weight = None, **fit_params):
+        if sample_weight is not None:
+            fit_params[self.steps[-1][0] + '__sample_weight'] = sample_weight
+        else:
+            sample_weight = sample_weight_generator(X) #newly added I don't want to use sklearn sample weight
+            
+        return super(Pipe_line, self).fit(X, y, **fit_params)
+
+def hyper_fit(feat: pd.DataFrame, # Train X
+              label: pd.Series, #meta-labels [0,1] binary form, y['bin']
+              events: pd.Series, # y['t1']
+              pipe_clf: ClassifierMixin, #classifierMixin SVM()
+              param_grid: list, 
+              n_splits: int = 3,
+              bagging: list = [0, None, 1.], #n_estimators, max_samples, max_features
+              random_search: int = 0,
+              n_jobs: int = 1,
+              pct_embargo: float = 0.0,
+              **fit_params):
+    
+    if set(label.values) == {0,1}:
+        scoring = 'f1'
+    else:
+        scoring = 'neg_log_loss'
+    inner_cv = PurgedKFold(n_splits = n_splits,
+                           events = events,
+                           pct_embargo = pct_embargo)
+    if random_search == 0:
+        gs = GridSearchCV(estimator = pipe_clf, 
+                          param_grid = param_grid, 
+                          scoring = scoring, 
+                          cv = inner_cv, 
+                          n_jobs = n_jobs) #iid = False depreciated version 0.22.0
+    else:
+        gs = RandomizedSearchCV(estimator = pipe_clf, 
+                                param_grid = param_grid, 
+                                scoring = scoring, 
+                                cv = inner_cv, 
+                                n_jobs = n_jobs,
+                                n_iter = random_search)
+    
+    gs = gs.fit(feat, label, **fit_params).best_estimator_ #pipeline
+    
+    if bagging[1] > 0:
+        gs = BaggingClassifier(base_estimator = Pipe_line(gs.steps), 
+                               n_estimators = int(bagging[0]), 
+                               max_samples = float(bagging[1]), 
+                               max_features = float(bagging[2]), 
+                               n_jobs = n_jobs)
+        gs = gs.fit(feat, label, sample_weight = fit_params \
+                    [gs.base_estimator.steps[-1][0] + '__sample_weight'])
+        gs = Pipeline(['bag', gs])
+    return gs
