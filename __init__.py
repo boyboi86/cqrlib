@@ -2,7 +2,7 @@
 
 from research.Util.multiprocess import mp_pandas_obj, opt_num_threads, process_jobs_, process_jobs
 from research.Util.volatility import *
-from research.Util.indicator import bband_as_side, make_data
+from research.Util.indicator import bband_as_side, make_classification_data, create_price_data
 
 from research.Util.bsm_model import *
 from research.Util.opt_prob_calculator import *
@@ -29,3 +29,5 @@ from research.Features.fractional_diff import fracDiff_FFD, fracDiff, min_value,
 #from research.Features.PCA_weight_dist import *
 
 from research.Ensemble.seq_bts_bagging import BaggingClassifier, BaggingRegressor
+
+from research.Risk_mgmt.bet_size import (get_signal, dynamic_bet)
