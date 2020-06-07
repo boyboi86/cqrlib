@@ -2,10 +2,12 @@
 
 from research.Util.multiprocess import mp_pandas_obj, opt_num_threads, process_jobs_, process_jobs
 from research.Util.volatility import *
-from research.Util.indicator import bband_as_side, make_classification_data, create_price_data
+from research.Util.indicator import bband_as_side
 
 from research.Util.bsm_model import *
 from research.Util.opt_prob_calculator import *
+
+from research.Sample_data.make_data import make_classification_data, create_price_data, make_randomt1_data
 
 #from research.Tools.root_methods import *
 from research.Tools.stats_rpt import (normality, unit_root, report_matrix, white_random, feat_imp)
