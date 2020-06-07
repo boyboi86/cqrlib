@@ -12,9 +12,9 @@ from sklearn.tree import DecisionTreeClassifier
 from research.Tools.cross_validate import cv_score, PurgedKFold
 from research.Util.multiprocess import mp_pandas_obj
 
-def sample_weight_generator(X):
-    sample_weight_ = np.ones(X.shape[0])
-    sample_weight = pd.Series(sample_weight_, index = X.index).div(X.shape[0]) # if not weight assigned equal prob given
+def sample_weight_generator(X: pd.DataFrame, axis: int = 0):
+    sample_weight_ = np.ones(X.shape[axis])
+    sample_weight = pd.Series(sample_weight_, index = X.index).div(X.shape[axis]) # if not weight assigned equal prob given
     return sample_weight
 
 def mdi(fitted_model: ClassifierMixin,
