@@ -18,9 +18,9 @@ def _avg_active_signals(signals, molecule):
     """
     out = pd.Series()
     for loc in molecule:
-        signals_times = (signals.index.to_numpy() <= loc)&((loc < signals['t1'])|pd.isnull(signals['t1']))
+        signals_times = (signals.index.values <= loc)&((loc < signals['t1'])|pd.isnull(signals['t1']))
         active = signals[signals_times].index
-        if active.size > 0:
+        if len(active) > 0:
             # Average active signals if they exist.
             out[loc] = signals.loc[active, 'signal'].mean()
         else:
@@ -42,8 +42,8 @@ def avg_active_signals(signals: pd.DataFrame, num_threads: int = 1):
     :return: (pandas.Series) The averaged bet sizes.
     """
     # 1) Time points where signals change (either one start or one ends).
-    t_pnts = set(signals['t1'].dropna().to_numpy())
-    t_pnts = t_pnts.union(signals.index.to_numpy())
+    t_pnts = set(signals['t1'].dropna().values)
+    t_pnts = t_pnts.union(signals.index.values)
     t_pnts = list(t_pnts)
     t_pnts.sort()
     out = mp_pandas_obj(_avg_active_signals, ('molecule', t_pnts), num_threads, signals=signals)
@@ -67,6 +67,7 @@ def get_signal(events: pd.DataFrame,
                prob: pd.Series = None,
                pred: pd.Series=None,
                n_classes: int = 1.,
+               discretization: bool = False,
                num_threads: int = 1, **kargs):
     """
     SNIPPET 10.1 - FROM PROBABILITIES TO BET SIZE
@@ -93,12 +94,12 @@ def get_signal(events: pd.DataFrame,
         # signal = size only
         bet_sizes = bet_sizes.apply(lambda _sig: 2 * norm.cdf(_sig) - 1)
     # for quantamental models chapter 3
-    
     if 'side' in events:
         bet_sizes *= events.loc[bet_sizes.index, 'side']
-    signals_df = bet_sizes.to_frame('signal').join(events[['t1']], how = 'left')
+    signals_df = bet_sizes.to_frame('signal').join(events['t1'], how = 'left')
     signals_df = avg_active_signals(signals = signals_df, num_threads = num_threads)
-
+    if discretization:
+        signals_df = discrete_signal(signal0 = signals_df, step_size = step_size)
     return signals_df
 # ==============================================================================
 # SNIPPET 10.4 - DYNAMIC POSITION SIZE AND LIMIT PRICE
@@ -129,7 +130,7 @@ def _target_position(width_coef, forecast_price, market_price, max_pos_size):
     :param max_pos: (int) Maximum absolute position size.
     :return: (int) Target position.
     """
-    return int(bet_size(width_coef, forecast_price - market_price) * max_pos_size)
+    return int(_bet_size(width_coef, forecast_price - market_price) * max_pos_size)
 
 
 def _inv_price(forecast_price, width_coef, m_bet_size):
@@ -220,7 +221,7 @@ def bet_size_power(width_coef, price_dvg):
     """
     if not (-1 <= price_dvg <= 1):
         raise ValueError(f"Price divergence must be between -1 and 1, inclusive. Found price divergence value:"
-                         f" {price_div}")
+                         f" {price_dvg}")
     if price_dvg == 0.0:
         return 0.0
 
