@@ -18,11 +18,11 @@ def _avg_active_signals(signals, molecule):
     """
     out = pd.Series()
     for loc in molecule:
-        signals_times = (signals.index.values <= loc)&((loc < signals['t1'])|pd.isnull(signals['t1']))
-        active = signals[signals_times].index
-        if len(active) > 0:
+        signals_times = (signals.index.values <= loc) & ((loc < signals['t1'])|pd.isnull(signals['t1']))
+        active_trades = signals[signals_times].index
+        if len(active_trades) > 0:
             # Average active signals if they exist.
-            out[loc] = signals.loc[active, 'signal'].mean()
+            out[loc] = signals.loc[active_trades, 'signal'].mean()
         else:
             # Return zero if no signals are active at this time step.
             out[loc] = 0
@@ -46,7 +46,9 @@ def avg_active_signals(signals: pd.DataFrame, num_threads: int = 1):
     t_pnts = t_pnts.union(signals.index.values)
     t_pnts = list(t_pnts)
     t_pnts.sort()
-    out = mp_pandas_obj(_avg_active_signals, ('molecule', t_pnts), num_threads, signals=signals)
+    out = mp_pandas_obj(_avg_active_signals, ('molecule', t_pnts), 
+                        num_threads = num_threads,
+                        signals=signals)
     return out
 
 def discrete_signal(signal0, step_size):
