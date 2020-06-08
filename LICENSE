@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 BSD 2-Clause License
 
 Copyright (c) 2020, Wei Xiang
@@ -17,6 +18,31 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
 DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+=======
+All rights reserved.
+
+Copyright (c) 2019, Hudson and Thames Quantitative Research
+
+This codebase is open-source* only in the sense that the code is free to use
+as-is, and the source code is publicly available, however, all other rights
+are reserved under the Hudson and Thames Quantitative Research brand.
+
+Our intention is to make some of the techniques developed publicly available
+and to promote research in quantitative finance and machine learning.
+
+1. Users may use the code as-is.
+2. All modifications made, must be added to the respective repositories
+   and all contribution's copyright falls under the Hudson and Thames brand.
+3. Rights to reproduce, distribute, or create derivative works must be
+   granted in writing. Requests for permissions must be directed to
+   research@hudsonthames.org
+4. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products.
+5. No user may use our code or any part thereof to sell, market, or distribute for any reason whatsoever,
+   especially to make a profit of any kind whatsoever.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+>>>>>>> 5be8c6dacb3f3c9cb78f0d7f8668be5f4550f1c1
 FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
 DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
 SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
