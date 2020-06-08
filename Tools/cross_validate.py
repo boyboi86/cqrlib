@@ -19,7 +19,7 @@ def sample_weight_generator(X):
     sample_weight = pd.Series(sample_weight_, index = X.index).div(X.shape[0]) # if not weight assigned equal weight given
     return sample_weight
 
-def train_times(events: pd.DataFrame, test_times: pd.Series) -> pd.Series:
+def train_times(events: pd.DataFrame, test_times: pd.Series):
     # pylint: disable=invalid-name
     """
     Advances in Financial Machine Learning, Snippet 7.1, page 106.
@@ -33,7 +33,7 @@ def train_times(events: pd.DataFrame, test_times: pd.Series) -> pd.Series:
     :param test_times: (pd.Series) Times for the test dataset.
     :return: (pd.Series) Training set
     """
-    train = events.t1.copy(deep=True)
+    train = events.copy(deep=True)
     for start_ix, end_ix in test_times.items():
         df0 = train[(start_ix <= train.index) & (train.index <= end_ix)].index  # Train starts within test
         df1 = train[(start_ix <= train) & (train <= end_ix)].index  # Train ends within test
@@ -42,12 +42,10 @@ def train_times(events: pd.DataFrame, test_times: pd.Series) -> pd.Series:
     return train
 
 def embargo_times(times, pct_embargo: float = .01):
-    step = int(times.shape[0] * pct_embargo)
-    if step == 0:
-        _embargo = pd.Series(times, index = times)
+    if pct_embargo == 0:
+        _embargo = pd.Series(times, index = times.index)
     else:
-        _embargo = pd.Series(times[step:], index = times[:-step])
-        _embargo.append(pd.Series(times[-1:], index = times[-step:]))
+        _embargo = pd.Series(times[pct_embargo:], index = times[:-pct_embargo].index)
     return _embargo
 
 class PurgedKFold(KFold):
@@ -81,7 +79,7 @@ class PurgedKFold(KFold):
     # noinspection PyPep8Naming
     def split(self,
               X: pd.DataFrame,
-              y: pd.Series,
+              y: pd.Series = None,
               groups=None):
         """
         The main method to call for the PurgedKFold class
@@ -97,17 +95,34 @@ class PurgedKFold(KFold):
 
         _idx = np.arange(X.shape[0])
         embargo = int(X.shape[0] * self.pct_embargo) #similar to sklearn round
-        test_ranges = [(idx[0], idx[-1] + 1) for idx in np.array_split(np.arange(X.shape[0]), self.n_splits)]
-        for start_idx, end_idx in test_ranges:
-            t0  = self.events.index[start_idx]
-            test_idx = _idx[start_idx:end_idx]
+
+        
+        test_ranges = [(ix[0], ix[-1] + 1) for ix in np.array_split(np.arange(X.shape[0]), self.n_splits)]
+        for start_ix, end_ix in test_ranges:
             
+            test_indices = _idx[start_ix:end_ix]
+
+            _test = pd.Series(index=[self.events[start_ix]], data=[self.events[end_ix-1]])
+            _train = train_times(self.events, _test)
+            _train = embargo_times(_train, embargo)
+            train_indices = []
+            for train_ix in _train.index:
+                train_indices.append(self.events.index.get_loc(train_ix))
+            yield np.array(train_indices), test_indices
+            """
+            t0  = self.events.index[start_idx]
+            print("t0",t0)
+            test_idx = _idx[start_idx:end_idx]
+            print("test",test_idx)
+            print("before max",self.events[test_idx].max())
             max_event_idx = self.events.searchsorted(self.events[test_idx].max())
+            print("max",max_event_idx)
             train_idx = self.events.searchsorted(self.events[self.events <= t0].index)
+            print("first",train_idx)
             train_idx = np.concatenate((train_idx, _idx[max_event_idx + embargo:]))
-
+            print("second",train_idx)
             yield train_idx, test_idx
-
+            """
 
 # noinspection PyPep8Naming
 def cv_score(
