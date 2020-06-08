@@ -167,7 +167,7 @@ def cv_score(
     for train, test in cv_gen.split(X=X, y=y): #we set y = None as default so we can leave it as it is
 #==============================================================
         
-        if shuffle_after_split is True:        
+        if shuffle_after_split:        
             test = shuffle(test, 
                             random_state = classifier.random_state) #added for randomness
             
