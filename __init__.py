@@ -32,4 +32,4 @@ from research.Features.fractional_diff import fracDiff_FFD, fracDiff, min_value,
 
 from research.Ensemble.seq_bts_bagging import BaggingClassifier, BaggingRegressor
 
-from research.Risk_mgmt.bet_size import (get_signal, dynamic_bet)
+from research.Risk_mgmt.bet_size import (avg_active_signals, get_signal, dynamic_bet, co_bets_size)
