@@ -1,7 +1,7 @@
 import warnings
 import pandas as pd
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import norm, moment
 
 from research.Util.multiprocess import mp_pandas_obj
 
@@ -42,8 +42,8 @@ def avg_active_signals(signals: pd.DataFrame, num_threads: int = 1):
     :return: (pandas.Series) The averaged bet sizes.
     """
     # 1) Time points where signals change (either one start or one ends).
-    t_pnts = set(signals['t1'].dropna().values)
-    t_pnts = t_pnts.union(signals.index.values)
+    t_pnts = set(signals['t1'].dropna().to_numpy())
+    t_pnts = t_pnts.union(signals.index.to_numpy())
     t_pnts = list(t_pnts)
     t_pnts.sort()
     out = mp_pandas_obj(_avg_active_signals, ('molecule', t_pnts), 
@@ -68,7 +68,7 @@ def get_signal(events: pd.DataFrame,
                step_size: int = 1,
                prob: pd.Series = None,
                pred: pd.Series=None,
-               n_classes: int = 1.,
+               n_classes: int = 2.,
                discretization: bool = False,
                num_threads: int = 1, **kargs):
     """
@@ -86,19 +86,16 @@ def get_signal(events: pd.DataFrame,
         return pd.Series()
 
     # 1) Generate signals from multinomial classification (one-vs-rest), looking into sklearn OvR
-    bet_sizes = (prob - 1/n_classes) / (prob * (1 - prob))**0.5
-
+    z_score = prob.apply(lambda prob: (prob - 1/n_classes) / (prob * (1 - prob))**0.5)
+    bet_size = z_score.apply(lambda x: 2 * norm.cdf(x) - 1)
     # Allow for bet size to be returned with or without side.
     if pred is not None:
-        # signal = side * size
-        bet_sizes = pred * (2 * norm.cdf(bet_sizes) - 1)
-    else:
-        # signal = size only
-        bet_sizes = bet_sizes.apply(lambda _sig: 2 * norm.cdf(_sig) - 1)
+        bet_size = bet_size.mul(pred)
+
     # for quantamental models chapter 3
-    if 'side' in events:
-        bet_sizes *= events.loc[bet_sizes.index, 'side']
-    signals_df = bet_sizes.to_frame('signal').join(events['t1'], how = 'left')
+    if 'side' in events.columns:
+        bet_size = bet_size.mul(events['side'])
+    signals_df = pd.DataFrame().assign(signal = bet_size, t1 = events['t1'])
     signals_df = avg_active_signals(signals = signals_df, num_threads = num_threads)
     if discretization:
         signals_df = discrete_signal(signal0 = signals_df, step_size = step_size)
@@ -209,6 +206,36 @@ def dynamic_bet(pos: int = 0,
                        max_pos_size = max_pos_size)
     
     return _wc, _trgt_pos, _lp
+
+#===============================================================================
+def _co_position(df: pd.DataFrame, side: pd.Series, molecule):
+    
+    df['ln'], df['sh'], df['co_events'] = 0, 0, 0
+
+    for idx in molecule:
+        # A bet side greater than zero indicates a long position.
+        _ln = set(df[(df.index <= idx) & (df['t1'] > idx) & (df['side'] > 0)].index)
+        df.loc[idx, 'ln'] = len(_ln)
+        # A bet side less than zero indicates a short position.
+        _sh = set(df[(df.index <= idx) & (df['t1'] > idx) & (df['side'] < 0)].index)
+        df.loc[idx, 'sh'] = len(_sh)
+    return df
+
+def co_bets_size(events: pd.DataFrame, side: pd.Series, budget: bool = False, num_threads: int = 1):
+    df = pd.DataFrame(index=events.index).assign(t1 = events['t1'],
+                                                 side = side)
+    
+    out = mp_pandas_obj(_co_position, ('molecule', events.index), 
+                        num_threads = num_threads,
+                        df = df,
+                        side=side)
+    out['co_events'] = out['ln'].add(out['sh'])
+    if budget:
+        out['m'] = out['ln'].div(out['ln'].max()).sub(out['sh'].div(out['sh'].max()))
+        print("max ln events: {0}, max sh events: {1}".format(out['ln'].max(),out['sh'].max()))
+    else:        
+        out['c_t'] = out['ln'].sub(out['sh'])
+    return out
 
 # ==============================================================================
 # Bet size calculations based on a power function.
