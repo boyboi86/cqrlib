@@ -187,7 +187,7 @@ def mp_pandas_obj(func, pd_obj, num_threads=24, mp_batches=1, lin_mols=True, axi
 
 
 # Snippet 20.8, pg 311, Single thread execution, for debugging
-def process_jobs_(jobs):
+def process_jobs_(jobs, task = None):
     """
     Advances in Financial Machine Learning, Snippet 20.8, page 311.
     Single thread execution, for debugging
@@ -195,11 +195,16 @@ def process_jobs_(jobs):
     :param jobs: (list) Jobs (molecules)
     :return: (list) Results of jobs
     """
+    if task is None:
+        task = jobs[0]['func'].__name__
+        
+    time0 = time.time()
+        
     out = []
     for job in jobs:
         out_ = expand_call(job)
         out.append(out_)
-
+    _report_progress(time0, task)
     return out
 
 
@@ -217,6 +222,23 @@ def expand_call(kargs):
     out = func(**kargs)
     return out
 
+def _report_progress(time0, task):
+    """
+    Advances in Financial Machine Learning, Snippet 20.9.1, pg 312.
+    Example of Asynchronous call to pythons multiprocessing library
+    :param job_num: (int) Number of current job
+    :param num_jobs: (int) Total number of jobs
+    :param time0: (time) Start time
+    :param task: (str) Task description
+    :return: (None)
+    """
+    # Report progress as asynch jobs are completed
+    t_msg = (time.time() - time0) / 60.0
+    time_stamp = str(dt.datetime.fromtimestamp(time.time()))
+
+    msg = "{0} {1} done after {2:.2f} mins".format(time_stamp, task, t_msg)
+
+    sys.stderr.write(msg + '\n')
 
 # Snippet 20.9.1, pg 312, Example of Asynchronous call to pythons multiprocessing library
 def report_progress(job_num, num_jobs, time0, task):
@@ -234,9 +256,14 @@ def report_progress(job_num, num_jobs, time0, task):
     msg.append(msg[1] * (1 / msg[0] - 1))
     time_stamp = str(dt.datetime.fromtimestamp(time.time()))
 
-    msg = time_stamp + ' ' + str(round(msg[0] * 100, 2)) + '% ' + task + ' done after ' + \
-          str(round(msg[1], 2)) + ' minutes. Remaining ' + str(round(msg[2], 2)) + ' minutes.'
+    #msg = time_stamp + ' ' + str(round(msg[0] * 100, 2)) + '% ' + task + ' done after ' + \
+    #      str(round(msg[1], 2)) + ' minutes. Remaining ' + str(round(msg[2], 2)) + ' minutes.'
 
+    msg = "{0} {1}% {2} done after {3} mins. Remaining {4} mins.".format(time_stamp, 
+                                                                           round(msg[0] * 100, 2),
+                                                                           task,
+                                                                           round(msg[1], 2),
+                                                                           round(msg[2], 2))
     if job_num < num_jobs:
         sys.stderr.write(msg + '\r')
     else:
@@ -244,7 +271,7 @@ def report_progress(job_num, num_jobs, time0, task):
 
 
 # Snippet 20.9.2, pg 312, Example of Asynchronous call to pythons multiprocessing library
-def process_jobs(jobs, task=None, num_threads=24):
+def process_jobs(jobs, task=None, num_threads: int = 24):
     """
     Advances in Financial Machine Learning, Snippet 20.9.2, page 312.
     Example of Asynchronous call to pythons multiprocessing library
