@@ -226,7 +226,7 @@ def co_bets_size(events: pd.DataFrame, side: pd.Series, budget: bool = False, nu
                                                  side = side)
     
     out = mp_pandas_obj(_co_position, ('molecule', events.index), 
-                        num_threads = num_threads,
+                        num_threads = 1,
                         df = df,
                         side=side)
     out['co_events'] = out['ln'].add(out['sh'])
