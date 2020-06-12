@@ -10,14 +10,14 @@ from numba import njit
 # This is the mixture’s class
 class M2N:
     
-    def __init__(self, mts, epsilon: float = 1e-3, variant: int = 0):
+    def __init__(self, mts: list, epsilon: float = 1e-3, variant: int = 0):
         self.mts = mts
         self.param = [0 for i in range(5)]
         self.error = sum([mts[i]**2 for i in range(len(mts))])
         self.epsilon = epsilon
         self.variant = variant
         
-    def fit(self, mu2):
+    def fit(self, mu2: list):
         p1=random.random()
         numIter = 0
         while True:
@@ -41,7 +41,7 @@ class M2N:
 
 #-------------------------------------------
 # Derive the mixture’s mts from its param
-    def get_mts(self, param):
+    def get_mts(self, param: list):
         m1 = param[4] * param[0] + (1 - param[4]) * param[1]
 
         m2 = param[4] * (param[2]**2 + param[0]**2) + (1-param[4])* (param[3] **2 + param[1]**2)
@@ -57,7 +57,7 @@ class M2N:
         return [m1, m2, m3, m4, m5]
 #-------------------------------------------
 # Equations for variant 1
-    def iter4(self, mu2, p1):
+    def iter4(self, mu2: float, p1: float):
         mts = self.mts
         
         mu1 = (mts[0] - (1 - p1) * mu2)/p1
@@ -75,7 +75,7 @@ class M2N:
 #-------------------------------------------
 # Equations for variant 2
 
-    def iter5(self, mu2, p1):
+    def iter5(self, mu2: float, p1: float):
         mts = self.mts
         mu1 = (mts[0] - (1 - p1) * mu2) / p1
         sig_2 = ((mts[2] + 2 * p1 * mu1**3 + (p1 - 1) * mu2**3 - 3 * mu1 * (mts[1] + mu2**2 * \
@@ -123,7 +123,7 @@ def _iter5(mu2, p1, mts):
 """  
 #-------------------------------------------
 # Compute mts about the mean (or centered) from mts about the origin
-def ctr_mts(mts,order):
+def ctr_mts(mts: list, order: int):
     moment_c=0
     for j in range(order+1):
         _comb = comb(order, j)
@@ -134,7 +134,7 @@ def ctr_mts(mts,order):
         moment_c += (-1)**j *_comb * mts[0]**j * a
     return moment_c
 
-def _mts_loop(mts, epsilon, factor, variant):
+def _mts_loop(mts: list, epsilon: float, factor: int, variant: int):
     result = []
     std=ctr_mts(mts, 2)**.5
     mu2 = [float(i) * epsilon * factor * std + mts[0] for i in range(1, int(1/ epsilon))]
@@ -145,13 +145,20 @@ def _mts_loop(mts, epsilon, factor, variant):
         if m2n.error < err_min:
             # as long as your error_min is lower than the original
             # it will append so you might have more than 1 param set in a single run
-            print(m2n.param, m2n.error)
+            #print(m2n.param, m2n.error)
             m2n.param.append(m2n.error)
             result.append(m2n.param)
             err_min=m2n.error
     return result
 
-def mts_fit(mts: list, epsilon: float = 1e-5, factor: int = 5, variant: int = 0, n_run: int = 10, num_threads: int = 1):   
+def mts_fit(mts: list,
+            epsilon: float = 1e-5,
+            factor: int = 5,
+            variant: int = 0,
+            n_run: int = 10,
+            f_params: bool = True,
+            num_threads: int = 1):
+    
     jobs, out = [], np.array([])
     for i in np.arange(n_run):
         job = {'func': _mts_loop, 
@@ -165,5 +172,7 @@ def mts_fit(mts: list, epsilon: float = 1e-5, factor: int = 5, variant: int = 0,
     else:
         _out = process_jobs(jobs, num_threads = num_threads)
     out = [i for _list in _out for i in _list]
-    out = pd.DataFrame(out, columns = ['p1', 's2', 's1', 'm2', 'm1', 'err']).T.add_prefix("n_")
-    return out.T
+    out = pd.DataFrame(out, columns = ['mu1', 'mu2', 'std_1', 'std_2', 'p1', 'err'])
+    if f_params:
+        out = out[out.err <= out.err.mean()]
+    return out
