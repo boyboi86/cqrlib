@@ -3,7 +3,7 @@ import pandas as pd
 import random
 from research.Util.multiprocess import process_jobs_, process_jobs
 
-from scipy.stats import norm, moment
+from scipy.stats import norm
 from scipy.special import comb
 from numba import njit
 
@@ -176,3 +176,30 @@ def mts_fit(mts: list,
     if f_params:
         out = out[out.err <= out.err.mean()]
     return out
+
+def get_param(param: pd.DataFrame):
+    _p1, _mu1, _mu2  = param.p1.mean(), param.mu1.mean(), param.mu2.mean()
+    
+    _std_1, _std_2 = param.std_1.mean(), param.std_2.mean()
+    return np.array([_mu1, _mu2, _std_1, _std_2, _p1])
+
+def m_dist(data: float, param: list):
+
+    _mu1, _mu2, _std_1, _std_2, _p1  = param
+    #print(_mu1, _mu2, _std_1, _std_2, _p1)
+    _cdf = _p1 * norm.cdf(data, _mu1, _std_1) + (1 - _p1) * norm.cdf(data, _mu2, _std_2)
+    return _cdf
+
+def m_bet_EF3M(data: pd.DataFrame, param: pd.DataFrame):
+    m_series = []
+    m_param = get_param(param = param)
+    m_dist0 = m_dist(data = 0, param = m_param)
+
+    for idx in np.arange(data.shape[0]):
+        if data.c_t[idx] >= .0:
+            _cdf = (m_dist(data = data.c_t[idx], param = m_param) - m_dist0)/ (1 - m_dist0)
+        else:
+            _cdf = (m_dist(data = data.c_t[idx], param = m_param) - m_dist0)/ m_dist0
+        m_series.append(_cdf)
+    data['m'] = m_series
+    return data
