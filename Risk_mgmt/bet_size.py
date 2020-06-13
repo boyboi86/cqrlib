@@ -1,8 +1,9 @@
 import warnings
 import pandas as pd
 import numpy as np
-from scipy.stats import norm, moment
+from scipy.stats import norm
 
+from research.Risk_mgmt.ef3m import mts_fit, m_bet_EF3M
 from research.Util.multiprocess import mp_pandas_obj
 
 def _avg_active_signals(signals, molecule):
@@ -51,7 +52,7 @@ def avg_active_signals(signals: pd.DataFrame, num_threads: int = 1):
                         signals=signals)
     return out
 
-def discrete_signal(signal0, step_size):
+def discrete_signal(signal0: pd.DataFrame, step_size: float = .01):
     """
     SNIPPET 10.3 - SIZE DISCRETIZATION TO PREVENT OVERTRADING
     Discretizes the bet size signal based on the step size given.
@@ -65,11 +66,11 @@ def discrete_signal(signal0, step_size):
     return signal1
 
 def get_signal(events: pd.DataFrame,
-               step_size: int = 1,
                prob: pd.Series = None,
                pred: pd.Series=None,
                n_classes: int = 2.,
                discretization: bool = False,
+               step_size: float = .01,
                num_threads: int = 1, **kargs):
     """
     SNIPPET 10.1 - FROM PROBABILITIES TO BET SIZE
@@ -185,7 +186,7 @@ def _width_coef(price_dvg, m_bet_size):
     return (price_dvg**2) * ((m_bet_size**(-2)) - 1)
 
 
-def dynamic_bet(pos: int = 0,
+def dynamic_bet(pos: float = 0,
                 max_pos_size: float = 100.,
                 market_price: float = 100.,
                 forecast_price: float = 115.,
@@ -214,14 +215,25 @@ def _co_position(df: pd.DataFrame, side: pd.Series, molecule):
 
     for idx in molecule:
         # A bet side greater than zero indicates a long position.
-        _ln = set(df[(df.index <= idx) & (df['t1'] > idx) & (df['side'] > 0)].index)
+        #_ln = set(df[(df.index <= idx) & (df['t1'] > idx) & (df['side'] > 0)].index)
+        _ln = (df[(df.index <= idx) & (df['t1'] > idx) & (df['side'] > 0)].index)
         df.loc[idx, 'ln'] = len(_ln)
         # A bet side less than zero indicates a short position.
-        _sh = set(df[(df.index <= idx) & (df['t1'] > idx) & (df['side'] < 0)].index)
+        #_sh = set(df[(df.index <= idx) & (df['t1'] > idx) & (df['side'] < 0)].index)
+        _sh = (df[(df.index <= idx) & (df['t1'] > idx) & (df['side'] < 0)].index)
         df.loc[idx, 'sh'] = len(_sh)
     return df
 
-def co_bets_size(events: pd.DataFrame, side: pd.Series, budget: bool = False, num_threads: int = 1):
+def co_bets_size(events: pd.DataFrame,
+                 side: pd.Series,
+                 budget: bool = False, #if this is false the remaining params will be required
+                 epsilon: float = 1e-5,
+                 factor: int = 5,
+                 variant: int = 1,
+                 n_run: int = 10,
+                 f_params: bool = False,
+                 num_threads: int = 1):
+    
     df = pd.DataFrame(index=events.index).assign(t1 = events['t1'],
                                                  side = side)
     
@@ -232,9 +244,19 @@ def co_bets_size(events: pd.DataFrame, side: pd.Series, budget: bool = False, nu
     out['co_events'] = out['ln'].add(out['sh'])
     if budget:
         out['m'] = out['ln'].div(out['ln'].max()).sub(out['sh'].div(out['sh'].max()))
-        print("max ln events: {0}, max sh events: {1}".format(out['ln'].max(),out['sh'].max()))
+        print("max ln events: {0},\n max sh events: {1}".format(out['ln'].max(),out['sh'].max()))
     else:        
         out['c_t'] = out['ln'].sub(out['sh'])
+        r_mts = [np.mean(out.c_t ** r) for r in np.arange(1,6)]
+        df0 = mts_fit(mts = r_mts,
+                epsilon = epsilon,
+                factor = factor,
+                variant = variant,
+                n_run = n_run,
+                f_params = f_params,
+                num_threads = num_threads)
+        out = m_bet_EF3M(data = out, param = df0)
+
     return out
 
 # ==============================================================================
