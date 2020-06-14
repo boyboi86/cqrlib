@@ -42,6 +42,7 @@ def make_randomt1_data(n_samples: int =10000, max_days: float = 5., Bdate: bool 
     df0 = pd.date_range(periods=n_samples, freq=_freq, end=_today)
     rand_days = np.random.uniform(1, max_days, n_samples)
     rand_days = pd.Series([dt.timedelta(days = d) for d in rand_days], index = df0)
-    X = pd.Series(df0 + pd.to_timedelta(rand_days, unit='d'), index = df0, name='t1').to_frame()
-    X.sort_values(by='t1', inplace=True)
+    df1 = df0 + pd.to_timedelta(rand_days, unit='d')
+    df1.sort_values(inplace=True)
+    X = pd.Series(df1, index = df0, name='t1').to_frame()
     return X
