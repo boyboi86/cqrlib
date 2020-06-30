@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import datetime as dt
+import random
 
 from sklearn.datasets import make_classification
 
@@ -79,3 +80,33 @@ def create_portfolio(price: list = [95, 1000], position: list = [1000, 10000], n
     div_equity = df[(df['yield'] >= 0.1) & (df['label'] != 1)].count()[0]
     p("\nJunk bond (Below BBB-grade): {0} %\nDividend equity: {1} %".format(100 * junk_bond/ n_sample, 100 * div_equity/n_sample))
     return df
+
+def generate_HRP_data(n_obs: int = 10000,
+                      n_sample:int = 100,
+                      size0: int = 5,
+                      size1: int = 5,
+                      sig1: float = .25,
+                      sig1F: float = 1.,
+                      seed: int = None,
+                      sys_risk: bool = True,
+                      idv_risk: bool = True):
+    
+    if seed is not None:
+        np.random.seed(seed = seed)
+        random.seed(seed)
+    x = np.random.normal(0,1, size=(n_obs, size0))
+    cols = [random.randint(0, size0 - 1) for i in range(size1)]
+    y = x[:, cols] + np.random.normal(0, sig1 * sig1F, size=(n_obs, len(cols)))
+    x = np.append(x, y, axis = 1)
+    if sys_risk:
+        point = np.random.randint(n_sample, n_obs-1, size = 2)
+        x[np.ix_(point, [cols[0], size0])] = np.array([[-.5,-.5], [2,2]])
+    if idv_risk:
+        point = np.random.randint(n_sample, n_obs-1, size = 2)
+        x[point, cols[-1]] = np.array([-.5,2])
+    idx = make_randomt1_data(n_samples = n_obs//2, max_days = 3, Bdate = False)
+    idx = pd.to_datetime(idx.index.union(idx.t1).sort_values())
+    x = pd.DataFrame(x, index = idx, columns = range(1,x.shape[1] + 1))
+    print("Dendogram based on the below grouping")
+    print([(j+1, size0+i) for i,j in enumerate(cols,1)])
+    return x
