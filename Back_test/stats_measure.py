@@ -334,8 +334,7 @@ def deflated_sr(obs_sr: float,
                 num_returns: int,
                 skew_returns: float = 0, 
                 kurt_returns: float = 3,
-                est_param: bool = False, 
-                benchmark_out: bool = False):
+                est_param: bool = False):
 
     # Calculating benchmark_SR from the parameters of estimates
     if est_param:
@@ -355,10 +354,7 @@ def deflated_sr(obs_sr: float,
                            skew_returns = skew_returns, 
                            kurt_returns = kurt_returns)
 
-    if benchmark_out:
-        return benchmark_sr
-
-    return deflated_sr
+    return (deflated_sr, benchmark_sr)
 
 
 def min_tr_len(obs_sr: float, 
