@@ -38,7 +38,11 @@ def _num_co_events(dataIndex: pd.DatetimeIndex, t1: pd.Series, molecule):
     t1=t1[t1>=molecule[0]] # events that end at or after molecule[0]
     t1=t1.loc[:t1[molecule].max()] # events that start at or before t1[molecule].max()
     #2) count events spanning a bar
+    #=========================================================================
+    #_t1 = pd.DatetimeIndex([t1.index[0],t1.max()])
+    #iloc = dataIndex.get_loc(_t1[0]) + 1
     iloc=dataIndex.searchsorted(pd.DatetimeIndex([t1.index[0],t1.max()]))
+    #=========================================================================
     count=pd.Series(0,index=dataIndex[iloc[0]:iloc[1]+1])
     for tIn,tOut in t1.items():
         count.loc[tIn:tOut]+=1.
@@ -57,19 +61,6 @@ def num_co_events(data: pd.Series, events: pd.DataFrame, num_threads: int):
     t1 is the end of period dor vert_bar func, 
     where t0 which is the beginning period based on filter criteria will become vert_bar index.
     '''
-    if isinstance(data, pd.Series):   
-        if isinstance(data.dtype, (str, dict, tuple, list)):
-            raise ValueError('data input must be pandas Series with dtype either float or integer value i.e. close price series')
-        if data.isnull().values.any():
-            raise ValueError('data series contain isinf, NaNs')
-            
-    if isinstance(data, pd.DataFrame):
-        if isinstance(data.squeeze().dtype, (str, dict, tuple, list)):
-            raise ValueError('data input must be pandas Series with dtype either float or integer value i.e. close price series')
-        elif not isinstance(data.squeeze(), pd.Series):
-            raise ValueError('data input must be pandas Series i.e. close price series')
-        else:
-            data = data.squeeze()
         
     if isinstance(events, pd.DataFrame):
         if isinstance(events, (int, str, float, dict, tuple, list)):
@@ -182,12 +173,12 @@ def _mp_idx_matrix(data: pd.DataFrame, molecule):
     '''
     event_ = data[molecule.index.min(): molecule.max()].index #in the book they included 1 more date index as max not sure why
     indM_ = pd.DataFrame(0., index = event_, columns= np.arange(molecule.shape[0]))
-    for i,(t0,t1) in enumerate(molecule.items()):
+    for i,(t0,t1) in enumerate(molecule.itertuples()):
         indM_.loc[t0:t1,i] = 1.
     
     return indM_
 
-def mp_idx_matrix(data: pd.Series, events: pd.DataFrame):
+def mp_idx_matrix(data: pd.Series, events: pd.DataFrame, num_threads: int = 1):
     '''
     Calculates the number of times events sample overlaps each other.
     This is a modified func, based on the initial func AFML pg 63 snippet 4.3
@@ -212,7 +203,7 @@ def mp_idx_matrix(data: pd.Series, events: pd.DataFrame):
     data.dropna(inplace=True) #create new index based on t1 events
     indM = mp_pandas_obj(func = _mp_idx_matrix, 
                               pd_obj = ('molecule', events.t1),
-                              num_threads = 1,
+                              num_threads = num_threads,
                               axis = 1,
                               data = data)
     
