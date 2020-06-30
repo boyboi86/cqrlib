@@ -195,16 +195,14 @@ def process_jobs_(jobs, task = None):
     :param jobs: (list) Jobs (molecules)
     :return: (list) Results of jobs
     """
-    if task is None:
-        task = jobs[0]['func'].__name__
-        
+
     time0 = time.time()
         
     out = []
     for job in jobs:
         out_ = expand_call(job)
         out.append(out_)
-    _report_progress(time0, task)
+    _report_progress(time0)
     return out
 
 
@@ -222,7 +220,7 @@ def expand_call(kargs):
     out = func(**kargs)
     return out
 
-def _report_progress(time0, task):
+def _report_progress(time0):
     """
     Advances in Financial Machine Learning, Snippet 20.9.1, pg 312.
     Example of Asynchronous call to pythons multiprocessing library
@@ -235,8 +233,8 @@ def _report_progress(time0, task):
     # Report progress as asynch jobs are completed
     t_msg = (time.time() - time0) / 60.0
     time_stamp = str(dt.datetime.fromtimestamp(time.time()))
-
-    msg = "{0} {1} done after {2:.2f} mins".format(time_stamp, task, t_msg)
+    
+    msg = "{0} done after {1:.2f} mins".format(time_stamp, t_msg)
 
     sys.stderr.write(msg + '\n')
 
@@ -290,7 +288,7 @@ def process_jobs(jobs, task=None, num_threads: int = 24):
     out = []
     time0 = time.time()
     # Process asynchronous output, report progress
-    for i, out_ in enumerate(outputs, 1):
+    for i, out_ in enumerate(outputs, start = 1):
         out.append(out_)
         print(out, "this out")
         report_progress(i, len(jobs), time0, task)
