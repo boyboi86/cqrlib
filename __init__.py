@@ -54,3 +54,4 @@ from research.Portfolio_opt.risk_metrics import RiskMetrics
 from research.Portfolio_opt.hrp import HRP
 from research.Portfolio_opt.cla import CLA
 from research.Portfolio_opt.mv import MV
+from research.Portfolio_opt.nco import NCO
