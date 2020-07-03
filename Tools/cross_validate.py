@@ -95,8 +95,8 @@ class PurgedKFold(KFold):
 
         _idx = np.arange(X.shape[0])
         embargo = int(X.shape[0] * self.pct_embargo) #similar to sklearn round
-
-        
+        if embargo == 0 and self.pct_embargo > 0: embargo = 1 #in case if rounding is too small to notice, not a problem for big dataset
+   
         test_ranges = [(ix[0], ix[-1] + 1) for ix in np.array_split(np.arange(X.shape[0]), self.n_splits)]
         for start_ix, end_ix in test_ranges:
             
@@ -104,6 +104,7 @@ class PurgedKFold(KFold):
 
             _test = pd.Series(index=[self.events[start_ix]], data=[self.events[end_ix-1]])
             _train = train_times(self.events, _test)
+
             _train = embargo_times(_train, embargo)
             train_indices = []
             for train_ix in _train.index:
