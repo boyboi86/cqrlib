@@ -29,7 +29,7 @@ def create_price_data(start_price: float = 1000.00, mu: float = .0, var: float =
     i = np.random.normal(mu, var, n_samples)
     df0 = pd.date_range(periods=n_samples, freq=pd.tseries.offsets.Minute(), end=dt.datetime.today())
     X = pd.Series(i, index=df0, name = "close").to_frame()
-    X.iat[0, 'close'] = start_price
+    X.loc[df0[0], 'close'] = start_price
     X.cumsum().plot.line()
     return X.cumsum()
 
