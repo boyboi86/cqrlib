@@ -9,7 +9,7 @@ cqrlib was created purely for educational purpose, these codes however are meant
 
 Feel free to contribute by completing any issues filed. It is meant to be used in conjunction with [tutorial](https://github.com/boyboi86/AFML)
 
-I'm working in a Quant fund call "Alpha Hedge Fund" focus on market neutral strategy, which runs on other propertiary methods, so feel free to use it. But!! DO NOT Monetize this repo in part or in whole!!
+DO NOT Monetize this repo in part or in whole!!
 
 Please credit the original author (Basically it's me), the code is free for use for research and learning purposes forever.
 
